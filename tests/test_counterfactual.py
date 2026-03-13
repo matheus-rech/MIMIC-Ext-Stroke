@@ -1,7 +1,5 @@
 # tests/test_counterfactual.py
-import pytest
 import pandas as pd
-import numpy as np
 
 
 def test_counterfactual_simulator_creates():

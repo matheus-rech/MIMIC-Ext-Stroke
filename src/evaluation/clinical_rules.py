@@ -1,6 +1,5 @@
 """Stroke-specific clinical plausibility rules."""
 import pandas as pd
-import numpy as np
 
 
 RULES = {

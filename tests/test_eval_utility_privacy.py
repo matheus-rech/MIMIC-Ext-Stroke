@@ -1,5 +1,4 @@
 # tests/test_eval_utility_privacy.py
-import pytest
 import numpy as np
 import pandas as pd
 

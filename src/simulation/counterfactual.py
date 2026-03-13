@@ -94,7 +94,8 @@ class CounterfactualSimulator:
             Default: mean of last timestep values.
         """
         if outcome_fn is None:
-            outcome_fn = lambda trajs: trajs[:, -1, :].mean(axis=1)
+            def outcome_fn(trajs):
+                return trajs[:, -1, :].mean(axis=1)
 
         factual = self.simulate_scenario(patient_profile, {}, n_samples)
         counterfactual = self.simulate_scenario(patient_profile, treatment, n_samples)

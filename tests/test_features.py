@@ -1,10 +1,10 @@
 """Tests for static feature extraction."""
-import pytest
 
 
 def test_static_features_shape():
     from src.data.features import extract_static_features
-    import yaml, pandas as pd
+    import yaml
+    import pandas as pd
 
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)
@@ -30,7 +30,8 @@ def test_static_features_shape():
 
 def test_static_features_no_nulls_in_ids():
     from src.data.features import extract_static_features
-    import yaml, pandas as pd
+    import yaml
+    import pandas as pd
 
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)
@@ -42,7 +43,8 @@ def test_static_features_no_nulls_in_ids():
 
 def test_static_features_comorbidity_flags_are_boolean():
     from src.data.features import extract_static_features
-    import yaml, pandas as pd
+    import yaml
+    import pandas as pd
 
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)
@@ -65,7 +67,8 @@ def test_static_features_comorbidity_flags_are_boolean():
 
 def test_static_features_stroke_subtype_values():
     from src.data.features import extract_static_features
-    import yaml, pandas as pd
+    import yaml
+    import pandas as pd
 
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)

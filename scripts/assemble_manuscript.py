@@ -10,8 +10,7 @@ from pathlib import Path
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.section import WD_ORIENT
-from docx.oxml.ns import qn, nsdecls
+from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 
 # ── Paths ──────────────────────────────────────────────────────────────────
@@ -343,7 +342,7 @@ def build_main_manuscript():
             keywords_text = content
 
     # Abstract heading
-    h = add_heading(doc, "Abstract", level=2)
+    add_heading(doc, "Abstract", level=2)
 
     # Abstract paragraphs
     for part in abstract_parts:
@@ -386,7 +385,6 @@ def build_main_manuscript():
 
     # Track which figures have been inserted
     figures_inserted = set()
-    figure_num = 0  # next main figure index to insert
 
     for stype, content in results_sections:
         if stype == "h2":

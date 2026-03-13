@@ -1,10 +1,9 @@
-import pytest
-import numpy as np
 
 
 def test_timeseries_returns_dataframe():
     from src.data.features import extract_timeseries
-    import yaml, pandas as pd
+    import yaml
+    import pandas as pd
 
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)
@@ -23,7 +22,8 @@ def test_timeseries_returns_dataframe():
 
 def test_timeseries_hour_range():
     from src.data.features import extract_timeseries
-    import yaml, pandas as pd
+    import yaml
+    import pandas as pd
 
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)
@@ -38,7 +38,8 @@ def test_timeseries_hour_range():
 
 def test_timeseries_has_multiple_patients():
     from src.data.features import extract_timeseries
-    import yaml, pandas as pd
+    import yaml
+    import pandas as pd
 
     with open("config/config.yaml") as f:
         config = yaml.safe_load(f)

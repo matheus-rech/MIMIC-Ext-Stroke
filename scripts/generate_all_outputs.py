@@ -7,13 +7,11 @@ for the MIMIC-IV stroke cohort digital twin project.
 import warnings
 warnings.filterwarnings("ignore")
 
-import os
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import seaborn as sns
 from scipy import stats
 from pathlib import Path
@@ -510,7 +508,7 @@ def table1_by_subtype(sf):
 
     # p-values
     pvals = []
-    cont_vars_set = {"Age (years)", "ICU LOS (days)"} | set(LAB_NICE.values())
+    {"Age (years)", "ICU LOS (days)"} | set(LAB_NICE.values())
     for _, row in merged.iterrows():
         vname = row["Variable"]
         if vname == "N":
@@ -571,7 +569,7 @@ def table1_by_mortality(sf):
                 pvals.append("")
         elif vname.startswith("Stroke subtype"):
             nice = vname.split("— ")[1] if "— " in vname else ""
-            inv = {v: k for k, v in SUBTYPE_NICE.items()}
+            {v: k for k, v in SUBTYPE_NICE.items()}
             if nice == SUBTYPE_NICE[SUBTYPE_ORDER[0]]:
                 pvals.append(_chi2_or_kw(sf, "stroke_subtype", "hospital_expire_flag", False))
             else:

@@ -1,5 +1,4 @@
 """Tests for DoppelGANger-style ICU time-series generation model."""
-import pytest
 import torch
 import numpy as np
 

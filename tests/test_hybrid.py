@@ -1,8 +1,6 @@
 """Tests for the hybrid digital twin pipeline (BN + DGAN)."""
 
-import pytest
 import pandas as pd
-import numpy as np
 
 
 def test_hybrid_pipeline_creates():

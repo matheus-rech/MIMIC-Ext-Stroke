@@ -22,7 +22,6 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.models.bayesian_net import StrokeProfileBN
-from src.models.ctgan_baseline import StrokeCTGAN, StrokeTVAE
 from sdv.metadata import SingleTableMetadata
 from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
 from src.models.dgan_model import StrokeTimeSeriesDGAN

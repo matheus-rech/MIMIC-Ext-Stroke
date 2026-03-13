@@ -1,5 +1,3 @@
-import pytest
-from pathlib import Path
 
 
 def test_extract_stroke_cohort_returns_dataframe():

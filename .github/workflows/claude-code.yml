@@ -1,0 +1,80 @@
+name: Claude Code
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  # Auto-review every PR
+  claude-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-sonnet-4-20250514"
+          direct_prompt: |
+            Review this PR for a stroke digital twin project (MIMIC-IV).
+            Focus on:
+            1. Clinical accuracy of any data analysis code
+            2. Statistical method correctness (scipy, sklearn, pgmpy)
+            3. Code quality (ruff-compatible Python 3.12)
+            4. Test coverage for new code
+            5. Manuscript consistency if markdown files changed
+            6. No hardcoded paths or secrets
+
+  # On-demand: comment "@claude" on a PR to ask questions or get help
+  claude-assist:
+    if: >
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Claude Code Assist
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-sonnet-4-20250514"
+          trigger_phrase: "@claude"
+          direct_prompt: |
+            You are assisting on a stroke digital twin project (MIMIC-IV v3.1).
+            Tech stack: Python 3.12, DuckDB, pgmpy, PyTorch, SDV, scikit-learn.
+            When fixing code:
+            - Run ruff check after changes
+            - Run pytest on affected test files
+            - Keep changes minimal and focused
+            - Commit with conventional commit messages (feat:, fix:, etc.)

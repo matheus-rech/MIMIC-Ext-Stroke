@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from pgmpy.models import DiscreteBayesianNetwork
 from pgmpy.estimators import HillClimbSearch, BIC, BayesianEstimator
+from pgmpy.factors.discrete import TabularCPD
 # BayesianModelSampling not needed; using DiscreteBayesianNetwork.simulate()
 
 
@@ -88,6 +89,22 @@ class StrokeProfileBN:
             prior_type="BDeu",
             equivalent_sample_size=10,
         )
+
+        # Fix: pgmpy's fit() skips isolated nodes — add marginal CPDs manually
+        for col in data.columns:
+            if self.model.get_cpds(col) is None:
+                states = sorted(data[col].unique())
+                counts = data[col].value_counts()
+                total = counts.sum()
+                probs = [[counts.get(s, 0) / total] for s in states]
+                cpd = TabularCPD(
+                    variable=col,
+                    variable_card=len(states),
+                    values=probs,
+                    state_names={col: states},
+                )
+                self.model.add_cpds(cpd)
+
         return self
 
     def sample(self, n: int, seed: int = 42) -> pd.DataFrame:

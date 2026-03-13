@@ -1,0 +1,36 @@
+data:
+  mimic_path: "../mimiciv/3.1"
+  output_path: "./outputs"
+  cohort_path: "./outputs/cohort"
+  synthetic_path: "./outputs/synthetic"
+
+cohort:
+  stroke_icd9: ["433", "434", "435", "436"]
+  stroke_icd10: ["I60", "I61", "I63", "I65", "I66", "I67", "G45"]
+  min_icu_los_hours: 6
+  max_icu_los_days: 30
+
+timeseries:
+  vital_itemids: [220045, 220050, 220051, 220052, 220210, 220277, 223762]
+  gcs_itemids: [220739, 223900, 223901]
+  lab_itemids: [50931, 50983, 50971, 50912, 51006, 51222, 51265, 51301, 51237, 50813]
+  resample_freq: "1h"
+  max_hours: 72
+
+models:
+  bayesian_net:
+    structure_algorithm: "hc"
+    scoring_method: "bic"
+    max_indegree: 3
+  dgan:
+    epochs: 5000
+    batch_size: 32
+    sample_len: 6
+    noise_dim: 100
+  n_synthetic_datasets: 10
+  random_seed: 42
+
+evaluation:
+  tstr_test_size: 0.3
+  privacy_k_neighbors: 5
+  dtw_perplexities: [15, 25, 50]

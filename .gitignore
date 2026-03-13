@@ -1,5 +1,8 @@
 .venv/
-outputs/
+outputs/cohort/
+outputs/synthetic/
+*.parquet
+*.npy
 *.pyc
 __pycache__/
 .DS_Store

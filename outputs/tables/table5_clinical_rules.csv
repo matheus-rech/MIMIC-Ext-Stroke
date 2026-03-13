@@ -1,0 +1,5 @@
+Dataset,Total Violation Rate,age_valid,gcs_valid,los_positive,sbp_gt_dbp,spo2_range,hr_range,temp_range
+Real,0.276,1.0,0.0,0.9318,0.0,0.0,0.0,0.0
+BN,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+CTGAN,0.2779,1.0,0.0,0.9451,0.0,0.0,0.0,0.0
+TVAE,0.2857,1.0,0.0,1.0,0.0,0.0,0.0,0.0

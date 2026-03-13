@@ -141,7 +141,7 @@ Only the first value recorded within 24 hours of hospital admission was retained
 | Age discretization | 6 bins: 18--45, 45--55, 55--65, 65--75, 75--85, 85+ | Expert-defined clinically meaningful age groups |
 | LOS discretization | 5 bins: 0--1d, 1--3d, 3--7d, 7--14d, 14+d | Expert-defined length-of-stay categories |
 | Lab discretization | Quartile-based (4 bins per lab) | Data-driven boundaries computed from training data |
-| Inverse discretization | Uniform random within bin range | Midpoint + noise to recover continuous values |
+| Inverse discretization | Uniform random within bin range | Random value sampled uniformly within the bin boundaries to recover continuous values |
 
 ### DGAN (ICU Time-Series Generation)
 

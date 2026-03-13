@@ -1,0 +1,314 @@
+{
+  "model_training_times": {
+    "bn_seconds": 1.0,
+    "ctgan_seconds": 120.6,
+    "tvae_seconds": 60.5,
+    "dgan_seconds": 1.9
+  },
+  "fidelity": {
+    "BN": {
+      "avg_ks_pvalue": 0.3567,
+      "frobenius_distance": 0.9669,
+      "discriminator_auc": 0.834,
+      "discriminator_auc_std": 0.0095,
+      "mca_manhattan": 0.1027,
+      "mca_real_dist": {
+        "ich": 0.1675,
+        "ischemic": 0.5047,
+        "other": 0.2424,
+        "sah": 0.0525,
+        "tia": 0.0329
+      },
+      "mca_synth_dist": {
+        "ich": 0.1514,
+        "ischemic": 0.5514,
+        "other": 0.2071,
+        "sah": 0.0549,
+        "tia": 0.0353
+      }
+    },
+    "CTGAN": {
+      "avg_ks_pvalue": 0.5984,
+      "frobenius_distance": 7.7607,
+      "discriminator_auc": 0.8469,
+      "discriminator_auc_std": 0.0104,
+      "mca_manhattan": 0.5812,
+      "mca_real_dist": {
+        "ich": 0.1675,
+        "ischemic": 0.5047,
+        "other": 0.2424,
+        "sah": 0.0525,
+        "tia": 0.0329
+      },
+      "mca_synth_dist": {
+        "ich": 0.458,
+        "ischemic": 0.3447,
+        "other": 0.1867,
+        "sah": 0.0059,
+        "tia": 0.0047
+      }
+    },
+    "TVAE": {
+      "avg_ks_pvalue": 0.4328,
+      "frobenius_distance": 11.3275,
+      "discriminator_auc": 1.0,
+      "discriminator_auc_std": 0.0,
+      "mca_manhattan": 0.9906,
+      "mca_real_dist": {
+        "ich": 0.1675,
+        "ischemic": 0.5047,
+        "other": 0.2424,
+        "sah": 0.0525,
+        "tia": 0.0329
+      },
+      "mca_synth_dist": {
+        "ich": 0.0,
+        "ischemic": 1.0,
+        "other": 0.0,
+        "sah": 0.0,
+        "tia": 0.0
+      }
+    }
+  },
+  "clinical_plausibility": {
+    "Real": {
+      "total_violation_rate": 0.276,
+      "total_violations": 4926,
+      "per_rule": {
+        "age_valid": {
+          "violations": 2550,
+          "violation_rate": 1.0
+        },
+        "gcs_valid": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "los_positive": {
+          "violations": 2376,
+          "violation_rate": 0.9318
+        },
+        "sbp_gt_dbp": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "spo2_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "hr_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "temp_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        }
+      }
+    },
+    "BN": {
+      "total_violation_rate": 0.0,
+      "total_violations": 0,
+      "per_rule": {
+        "age_valid": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "gcs_valid": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "los_positive": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "sbp_gt_dbp": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "spo2_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "hr_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "temp_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        }
+      }
+    },
+    "CTGAN": {
+      "total_violation_rate": 0.2779,
+      "total_violations": 4960,
+      "per_rule": {
+        "age_valid": {
+          "violations": 2550,
+          "violation_rate": 1.0
+        },
+        "gcs_valid": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "los_positive": {
+          "violations": 2410,
+          "violation_rate": 0.9451
+        },
+        "sbp_gt_dbp": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "spo2_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "hr_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "temp_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        }
+      }
+    },
+    "TVAE": {
+      "total_violation_rate": 0.2857,
+      "total_violations": 5100,
+      "per_rule": {
+        "age_valid": {
+          "violations": 2550,
+          "violation_rate": 1.0
+        },
+        "gcs_valid": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "los_positive": {
+          "violations": 2550,
+          "violation_rate": 1.0
+        },
+        "sbp_gt_dbp": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "spo2_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "hr_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        },
+        "temp_range": {
+          "violations": 0,
+          "violation_rate": 0.0
+        }
+      }
+    }
+  },
+  "utility": {
+    "BN": {
+      "lr_trtr_auc": 0.6995,
+      "lr_tstr_auc": 0.5751,
+      "lr_gap": 0.1244,
+      "rf_trtr_auc": 0.7407,
+      "rf_tstr_auc": 0.5719,
+      "rf_gap": 0.1688,
+      "trtr_auc": 0.7201,
+      "tstr_auc": 0.5735,
+      "auc_gap": 0.1466
+    },
+    "CTGAN": {
+      "lr_trtr_auc": 0.8195,
+      "lr_tstr_auc": 0.5798,
+      "lr_gap": 0.2397,
+      "rf_trtr_auc": 0.8383,
+      "rf_tstr_auc": 0.5808,
+      "rf_gap": 0.2576,
+      "trtr_auc": 0.8289,
+      "tstr_auc": 0.5803,
+      "auc_gap": 0.2486
+    },
+    "TVAE": {
+      "trtr_auc": 0,
+      "tstr_auc": 0,
+      "auc_gap": 0,
+      "lr_trtr_auc": 0,
+      "lr_tstr_auc": 0,
+      "rf_trtr_auc": 0,
+      "rf_tstr_auc": 0,
+      "error": "This solver needs samples of at least 2 classes in the data, but the data contains only one class: np.int64(0)"
+    }
+  },
+  "privacy": {
+    "BN": {
+      "mia_f1": 1.0,
+      "median_nn_distance": 2642.5136,
+      "mean_dcr": 5906.2422,
+      "median_dcr": 2642.5136,
+      "min_dcr": 1670.6125,
+      "p5_dcr": 1904.4819,
+      "aia_accuracy": 0.8519
+    },
+    "CTGAN": {
+      "mia_f1": 1.0,
+      "median_nn_distance": 5.7052,
+      "mean_dcr": 5.744,
+      "median_dcr": 5.7052,
+      "min_dcr": 0.1359,
+      "p5_dcr": 3.594,
+      "aia_accuracy": 0.7286
+    },
+    "TVAE": {
+      "mia_f1": 1.0,
+      "median_nn_distance": 3.3553,
+      "mean_dcr": 3.3644,
+      "median_dcr": 3.3553,
+      "min_dcr": 3.2665,
+      "p5_dcr": 3.2948,
+      "aia_accuracy": 0.8519
+    }
+  },
+  "temporal": {
+    "dtw": {
+      "mean_dtw": 5.0416,
+      "median_dtw": 4.9208,
+      "std_dtw": 0.6547
+    },
+    "autocorrelation": {
+      "hr": {
+        "mean_diff": 0.1907,
+        "max_diff": 0.4549
+      },
+      "sbp": {
+        "mean_diff": 0.1354,
+        "max_diff": 0.3968
+      },
+      "dbp": {
+        "mean_diff": 0.1355,
+        "max_diff": 0.4163
+      },
+      "map": {
+        "mean_diff": 0.1766,
+        "max_diff": 0.4488
+      },
+      "rr": {
+        "mean_diff": 0.2166,
+        "max_diff": 0.62
+      },
+      "spo2": {
+        "mean_diff": 0.1697,
+        "max_diff": 0.525
+      },
+      "temp_c": {
+        "mean_diff": 0.1517,
+        "max_diff": 0.3237
+      }
+    },
+    "dgan_training_time": 1.9,
+    "n_patients": 200,
+    "seq_len": 24
+  }
+}

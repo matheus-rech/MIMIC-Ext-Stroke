@@ -1,0 +1,4 @@
+Model,Avg KS p-value,Frobenius Distance,Discriminator AUC,MCA Manhattan
+BN,0.3567,0.9669,0.834,0.1027
+CTGAN,0.5984,7.7607,0.8469,0.5812
+TVAE,0.4328,11.3275,1.0,0.9906

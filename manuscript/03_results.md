@@ -2,9 +2,9 @@
 
 ### 3.1 Cohort Characteristics
 
-The final analytic cohort comprised 8,500 ICU stays with a primary stroke diagnosis extracted from MIMIC-IV v3.1 (Table 1). The median age was 68.0 years (IQR 57.0--78.0), with a near-equal gender distribution (50.1% female, 49.9% male). The racial composition reflected the source institution's catchment area, with White patients constituting the majority (58.8%), followed by Unknown/Declined (13.8%), and Black/African American (7.0%) (Figure 1).
+The final analytic cohort comprised [N] ICU stays with a primary stroke diagnosis extracted from MIMIC-IV v3.1 (Table 1). Cohort demographics, stroke subtype distributions, comorbidity profiles, and outcome characteristics will be reported following new cohort construction with updated ICD code criteria.
 
-Ischemic stroke was the most prevalent subtype, accounting for 4,398 patients (51.7%), followed by Other cerebrovascular events (1,987; 23.4%), intracerebral hemorrhage (ICH; 1,397; 16.4%), subarachnoid hemorrhage (SAH; 436; 5.1%), and transient ischemic attack (TIA; 282; 3.3%) (Figure 2). This distribution is consistent with epidemiological estimates in which ischemic events predominate, while hemorrhagic subtypes together account for approximately one-fifth of cases.
+*[Note: The cohort characteristics below reflect the preliminary extraction and will be updated after the revised SQL queries are executed on MIMIC-IV v3.1.]*
 
 Comorbidity burden was substantial (Figure 3). Dyslipidemia was the most prevalent comorbidity (52.8%), closely followed by hypertension (51.7%), atrial fibrillation (31.2%), diabetes mellitus (28.1%), coronary artery disease (CAD; 25.2%), and chronic kidney disease (CKD; 17.8%). The comorbidity co-occurrence matrix revealed that the most frequent pairwise combination was hypertension with dyslipidemia (30.9% of the cohort), followed by dyslipidemia with atrial fibrillation (19.4%) and dyslipidemia with diabetes (19.0%) (Figure 4). Notably, hypertension and CKD co-occurred in only 0.4% of patients, a finding that likely reflects coding practices rather than true clinical dissociation.
 
@@ -20,7 +20,7 @@ Among the more clinically nuanced dependencies, the network captured a connectio
 
 ### 3.3 Synthetic Data Fidelity
 
-We evaluated synthetic data fidelity using four complementary metrics, comparing the Bayesian Network (BN) generator to two baselines -- Conditional Tabular GAN (CTGAN) and Tabular Variational Autoencoder (TVAE) -- each producing 8,500 synthetic patients.
+We evaluated synthetic data fidelity using four complementary metrics, comparing the Bayesian Network (BN) generator to two baselines -- Conditional Tabular GAN (CTGAN) and Tabular Variational Autoencoder (TVAE) -- each producing [N] synthetic patients.
 
 **Dimension-wise distributional similarity.** Kolmogorov-Smirnov (KS) tests were conducted for each of the seven continuous variables. The CTGAN baseline achieved the highest mean KS p-value of 0.576, indicating that its synthetic marginal distributions were, on average, the closest to the real data for individual variables. The BN-generated data achieved a mean KS p-value of 0.357, and the TVAE baseline achieved 0.433. However, as shown below, marginal distributional fidelity alone does not capture the quality of multivariate structure or categorical class balance.
 

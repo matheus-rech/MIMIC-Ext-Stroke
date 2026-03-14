@@ -215,7 +215,7 @@ def _compute_fidelity_single(
             )
             metrics["mca_manhattan"] = mca["manhattan_distance"]
         else:
-            metrics["mca_manhattan"] = 0.0
+            metrics["mca_manhattan"] = np.nan
     else:
         synth_eval = _add_eval_cols(synth_df)
         synth_num = synth_df[_get_numeric_cols(synth_df)]
@@ -336,8 +336,11 @@ def _compute_privacy_single(
             aia = {"aia_accuracy": 0}
     else:
         synth_clinical = inverse_normalize(synth_df, norm_params)
-        real_num = train_ohe_clinical[_get_numeric_cols(train_ohe_clinical)]
-        synth_num = synth_clinical[_get_numeric_cols(synth_clinical)]
+        real_cols = set(_get_numeric_cols(train_ohe_clinical))
+        synth_cols = set(_get_numeric_cols(synth_clinical))
+        shared_cols = sorted(real_cols & synth_cols)
+        real_num = train_ohe_clinical[shared_cols]
+        synth_num = synth_clinical[shared_cols]
         mia = membership_inference_attack(real_num, synth_num)
         nnd = nearest_neighbor_distance(real_num, synth_num)
         qi = [c for c in _get_numeric_cols(train_ohe_clinical) if c != "hospital_expire_flag"][:10]

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Full evaluation pipeline for the stroke digital twin manuscript.
 
-Fits BN, CTGAN, TVAE on training data, generates synthetic data,
-and computes all metrics (fidelity, clinical plausibility, utility,
-privacy, temporal). Results are saved to JSON and CSV tables.
+Fits BN, CTGAN, TVAE on training data, generates M=10 synthetic datasets
+per model, computes all metrics per dataset, and pools results using
+Rubin's combining rules (Reiter 2003 variant for synthetic data).
+Results are saved to JSON and CSV tables with pooled estimates and 95%
+confidence intervals.
 """
 
 import sys
@@ -32,7 +34,11 @@ from src.evaluation.fidelity import (
     discriminator_score,
     medical_concept_abundance,
 )
-from src.evaluation.clinical_rules import check_clinical_rules, inverse_normalize, load_norm_params
+from src.evaluation.clinical_rules import (
+    check_clinical_rules,
+    inverse_normalize,
+    load_norm_params,
+)
 from src.evaluation.utility import tstr_evaluation
 from src.evaluation.privacy import (
     membership_inference_attack,
@@ -40,10 +46,11 @@ from src.evaluation.privacy import (
     attribute_inference_attack,
 )
 from src.evaluation.temporal import dtw_distance_matrix, autocorrelation_comparison
+from src.evaluation.rubins_rules import pool_metric_dict
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Constants
 # ---------------------------------------------------------------------------
 COHORT_DIR = os.path.join(PROJECT_ROOT, "outputs", "cohort")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
@@ -51,6 +58,10 @@ TABLES_DIR = os.path.join(OUTPUT_DIR, "tables")
 os.makedirs(TABLES_DIR, exist_ok=True)
 
 ID_COLS = ["subject_id", "hadm_id", "stay_id"]
+
+# Number of independently generated synthetic datasets per model.
+# Following El Emam et al. (2024) recommendation of "at least 10".
+M_DATASETS = 10
 
 # Columns that are one-hot encoded stroke_subtype indicators
 STROKE_OHE = [
@@ -62,6 +73,11 @@ STROKE_OHE = [
 ]
 
 GENDER_OHE = ["gender_F", "gender_M"]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _reverse_ohe_stroke(df: pd.DataFrame) -> pd.Series:
@@ -80,24 +96,50 @@ def _reverse_ohe_gender(df: pd.DataFrame) -> pd.Series:
     return df[ohe_cols].idxmax(axis=1).str.replace("gender_", "")
 
 
-def _prepare_bn_data(df_ohe: pd.DataFrame, df_full: pd.DataFrame) -> pd.DataFrame:
+def _add_eval_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Add reverse-OHE stroke_subtype and gender columns for evaluation."""
+    result = df.copy()
+    result["stroke_subtype"] = _reverse_ohe_stroke(df)
+    result["gender"] = _reverse_ohe_gender(df)
+    return result
+
+
+def _prepare_bn_data(
+    df_ohe: pd.DataFrame, df_full: pd.DataFrame,
+) -> pd.DataFrame:
     """Prepare data for BN by merging original categoricals from full dataset."""
-    # Get the BN features from the full (non-OHE) dataset using stay_id as key
     full_ids = set(df_full["stay_id"])
     ohe_ids = set(df_ohe["stay_id"])
     common_ids = full_ids & ohe_ids
 
     bn_feats = StrokeProfileBN.BN_FEATURES
     available = [c for c in bn_feats if c in df_full.columns]
-    subset = df_full[df_full["stay_id"].isin(common_ids)][["stay_id"] + available].copy()
-    # Drop duplicates on stay_id (some patients may have multiple rows)
+    subset = df_full[df_full["stay_id"].isin(common_ids)][
+        ["stay_id"] + available
+    ].copy()
     subset = subset.drop_duplicates(subset="stay_id")
     return subset
 
 
 def _get_numeric_cols(df: pd.DataFrame) -> list:
     """Get numeric columns excluding IDs."""
-    return [c for c in df.select_dtypes(include=[np.number]).columns if c not in ID_COLS]
+    return [
+        c
+        for c in df.select_dtypes(include=[np.number]).columns
+        if c not in ID_COLS
+    ]
+
+
+def _coerce_bn_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert category dtypes in BN output to numeric/string."""
+    result = df.copy()
+    for col in result.columns:
+        if result[col].dtype.name == "category":
+            try:
+                result[col] = pd.to_numeric(result[col])
+            except (ValueError, TypeError):
+                result[col] = result[col].astype(str)
+    return result
 
 
 def _safe_json(obj):
@@ -128,10 +170,223 @@ def _clean_for_json(d: dict) -> dict:
     return out
 
 
+def _pooled_val(pooled: dict, key: str) -> str:
+    """Format a pooled metric as 'estimate [CI_lo, CI_hi]'."""
+    entry = pooled.get(key, {})
+    est = entry.get("pooled_estimate")
+    if est is None:
+        return ""
+    lo = entry.get("ci_lower")
+    hi = entry.get("ci_upper")
+    if lo is not None and hi is not None:
+        return f"{est:.4f} [{lo:.4f}, {hi:.4f}]"
+    return f"{est:.4f}"
+
+
+# ---------------------------------------------------------------------------
+# Per-dataset metric computation helpers
+# ---------------------------------------------------------------------------
+
+
+def _compute_fidelity_single(
+    model_name: str,
+    synth_df: pd.DataFrame,
+    real_test_numeric: pd.DataFrame,
+    test_bn: pd.DataFrame,
+    test_ohe_eval: pd.DataFrame,
+) -> dict:
+    """Compute fidelity metrics for a single synthetic dataset."""
+    metrics: dict = {}
+
+    if model_name == "BN":
+        bn_num_cols = [
+            c
+            for c in synth_df.columns
+            if synth_df[c].dtype in [np.float64, np.int64, np.float32, np.int32]
+            and c not in ID_COLS
+        ]
+        real_for_bn = test_bn[
+            [c for c in bn_num_cols if c in test_bn.columns]
+        ]
+        synth_for_bn = synth_df[
+            [c for c in bn_num_cols if c in synth_df.columns]
+        ]
+
+        dwd = dimension_wise_distribution(real_for_bn, synth_for_bn)
+        cp = correlation_preservation(real_for_bn, synth_for_bn)
+        ds = discriminator_score(real_for_bn, synth_for_bn)
+
+        if (
+            "stroke_subtype" in synth_df.columns
+            and "stroke_subtype" in test_bn.columns
+        ):
+            mca = medical_concept_abundance(
+                test_bn, synth_df, "stroke_subtype",
+            )
+            metrics["mca_manhattan"] = mca["manhattan_distance"]
+        else:
+            metrics["mca_manhattan"] = 0.0
+    else:
+        synth_eval = _add_eval_cols(synth_df)
+        synth_num = synth_df[_get_numeric_cols(synth_df)]
+        dwd = dimension_wise_distribution(real_test_numeric, synth_num)
+        cp = correlation_preservation(real_test_numeric, synth_num)
+        ds = discriminator_score(real_test_numeric, synth_num)
+
+        mca = medical_concept_abundance(
+            test_ohe_eval, synth_eval, "stroke_subtype",
+        )
+        metrics["mca_manhattan"] = mca["manhattan_distance"]
+
+    metrics["avg_ks_pvalue"] = dwd["avg_pvalue"]
+    metrics["frobenius_distance"] = cp["frobenius_distance"]
+    metrics["discriminator_auc"] = ds["auc"]
+    return metrics
+
+
+def _compute_plausibility_single(
+    model_name: str,
+    synth_df: pd.DataFrame,
+    norm_params: dict,
+) -> dict:
+    """Compute plausibility metrics for a single synthetic dataset."""
+    use_norm = norm_params if model_name != "BN" else None
+    df_for_check = (
+        synth_df if model_name == "BN" else _add_eval_cols(synth_df)
+    )
+    cr = check_clinical_rules(df_for_check, norm_params=use_norm)
+    return {"total_violation_rate": cr["total_violation_rate"]}
+
+
+def _compute_utility_single(
+    model_name: str,
+    synth_df: pd.DataFrame,
+    train_ohe: pd.DataFrame,
+    test_ohe: pd.DataFrame,
+) -> dict:
+    """Compute utility (TSTR) metrics for a single synthetic dataset."""
+    train_cols = [c for c in train_ohe.columns if c not in ID_COLS]
+
+    if model_name == "BN":
+        bn_num = [
+            c
+            for c in synth_df.columns
+            if c not in ID_COLS
+            and synth_df[c].dtype
+            in [np.float64, np.int64, np.float32, np.int32]
+            and c != "hospital_expire_flag"
+        ]
+        common_feat = [
+            c
+            for c in bn_num
+            if c in train_ohe.columns and c in test_ohe.columns
+        ]
+        if (
+            "hospital_expire_flag" in synth_df.columns
+            and len(common_feat) > 0
+        ):
+            target_col = "hospital_expire_flag"
+            bn_synth = synth_df[common_feat + [target_col]].copy()
+            bn_train = train_ohe[common_feat + [target_col]].copy()
+            bn_test = test_ohe[common_feat + [target_col]].copy()
+            tstr = tstr_evaluation(bn_train, bn_synth, bn_test)
+        else:
+            tstr = {"trtr_auc": 0, "tstr_auc": 0, "auc_gap": 0}
+    else:
+        if "hospital_expire_flag" not in synth_df.columns:
+            tstr = {"trtr_auc": 0, "tstr_auc": 0, "auc_gap": 0}
+        else:
+            try:
+                tstr = tstr_evaluation(
+                    train_ohe[train_cols], synth_df, test_ohe[train_cols],
+                )
+            except ValueError:
+                tstr = {"trtr_auc": 0, "tstr_auc": 0, "auc_gap": 0}
+
+    return {
+        "trtr_auc": tstr.get("trtr_auc", 0),
+        "tstr_auc": tstr.get("tstr_auc", 0),
+        "auc_gap": tstr.get("auc_gap", 0),
+    }
+
+
+def _compute_privacy_single(
+    model_name: str,
+    synth_df: pd.DataFrame,
+    train_ohe_clinical: pd.DataFrame,
+    norm_params: dict,
+) -> dict:
+    """Compute privacy metrics for a single synthetic dataset."""
+    if model_name == "BN":
+        bn_num = [
+            c
+            for c in synth_df.columns
+            if synth_df[c].dtype
+            in [np.float64, np.int64, np.float32, np.int32]
+            and c not in ID_COLS
+        ]
+        common = [c for c in bn_num if c in train_ohe_clinical.columns]
+        if common:
+            real_priv = train_ohe_clinical[common]
+            synth_priv = synth_df[common]
+            mia = membership_inference_attack(real_priv, synth_priv)
+            nnd = nearest_neighbor_distance(real_priv, synth_priv)
+
+            qi = [
+                c for c in common if c != "hospital_expire_flag"
+            ][:8]
+            if "hospital_expire_flag" in synth_df.columns:
+                aia = attribute_inference_attack(
+                    train_ohe_clinical,
+                    synth_df,
+                    "hospital_expire_flag",
+                    qi,
+                )
+            else:
+                aia = {"aia_accuracy": 0}
+        else:
+            mia = {"mia_f1": 0}
+            nnd = {
+                "mean_dcr": 0,
+                "median_dcr": 0,
+                "min_dcr": 0,
+                "p5_dcr": 0,
+            }
+            aia = {"aia_accuracy": 0}
+    else:
+        synth_clinical = inverse_normalize(synth_df, norm_params)
+        real_num = train_ohe_clinical[
+            _get_numeric_cols(train_ohe_clinical)
+        ]
+        synth_num = synth_clinical[_get_numeric_cols(synth_clinical)]
+        mia = membership_inference_attack(real_num, synth_num)
+        nnd = nearest_neighbor_distance(real_num, synth_num)
+        qi = [
+            c
+            for c in _get_numeric_cols(train_ohe_clinical)
+            if c != "hospital_expire_flag"
+        ][:10]
+        aia = attribute_inference_attack(
+            train_ohe_clinical,
+            synth_clinical,
+            "hospital_expire_flag",
+            qi,
+        )
+
+    return {
+        "mia_f1": mia["mia_f1"],
+        "mean_dcr": nnd["mean_dcr"],
+        "median_dcr": nnd["median_dcr"],
+        "min_dcr": nnd["min_dcr"],
+        "p5_dcr": nnd["p5_dcr"],
+        "aia_accuracy": aia["aia_accuracy"],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
-def main():
+def main():  # noqa: C901
     results = {}
     t0 = time.time()
 
@@ -142,10 +397,18 @@ def main():
     print("STEP 1: Loading data")
     print("=" * 70)
 
-    train_ohe = pd.read_parquet(os.path.join(COHORT_DIR, "static_features_train.parquet"))
-    test_ohe = pd.read_parquet(os.path.join(COHORT_DIR, "static_features_test.parquet"))
-    full_static = pd.read_parquet(os.path.join(COHORT_DIR, "static_features.parquet"))
-    ts_df = pd.read_parquet(os.path.join(COHORT_DIR, "timeseries_processed.parquet"))
+    train_ohe = pd.read_parquet(
+        os.path.join(COHORT_DIR, "static_features_train.parquet"),
+    )
+    test_ohe = pd.read_parquet(
+        os.path.join(COHORT_DIR, "static_features_test.parquet"),
+    )
+    full_static = pd.read_parquet(
+        os.path.join(COHORT_DIR, "static_features.parquet"),
+    )
+    ts_df = pd.read_parquet(
+        os.path.join(COHORT_DIR, "timeseries_processed.parquet"),
+    )
 
     print(f"  Train (OHE):  {train_ohe.shape}")
     print(f"  Test  (OHE):  {test_ohe.shape}")
@@ -155,12 +418,12 @@ def main():
     n_test = len(test_ohe)
 
     # Load normalization parameters for inverse-normalization.
-    # This file is required for correct plausibility and privacy evaluation.
+    # Required for correct plausibility and privacy evaluation.
     norm_params_path = os.path.join(COHORT_DIR, "norm_params.json")
     if not os.path.exists(norm_params_path):
         raise FileNotFoundError(
-            f"{norm_params_path} not found. This file is required for correct "
-            "evaluation of clinical plausibility and privacy metrics."
+            f"{norm_params_path} not found. This file is required for "
+            "correct evaluation of clinical plausibility and privacy."
         )
     norm_params = load_norm_params(norm_params_path)
     print(f"  Loaded norm_params: {len(norm_params)} columns")
@@ -170,19 +433,17 @@ def main():
     test_bn = _prepare_bn_data(test_ohe, full_static)
     print(f"  BN train: {train_bn.shape}, BN test: {test_bn.shape}")
 
-    # Add stroke_subtype and gender columns to OHE dataframes for evaluation
-    train_ohe_eval = train_ohe.copy()
-    test_ohe_eval = test_ohe.copy()
-    train_ohe_eval["stroke_subtype"] = _reverse_ohe_stroke(train_ohe)
-    test_ohe_eval["stroke_subtype"] = _reverse_ohe_stroke(test_ohe)
-    train_ohe_eval["gender"] = _reverse_ohe_gender(train_ohe)
-    test_ohe_eval["gender"] = _reverse_ohe_gender(test_ohe)
+    # Add stroke_subtype and gender columns for evaluation
+    test_ohe_eval = _add_eval_cols(test_ohe)
 
     # ==================================================================
-    # 2. Fit models and generate synthetic data
+    # 2. Fit models (once each) and generate M synthetic datasets
     # ==================================================================
     print("\n" + "=" * 70)
-    print("STEP 2: Fitting models and generating synthetic data")
+    print(
+        f"STEP 2: Fitting models and generating "
+        f"{M_DATASETS} synthetic datasets each"
+    )
     print("=" * 70)
 
     # --- BN ---
@@ -190,25 +451,40 @@ def main():
     t1 = time.time()
     bn = StrokeProfileBN(max_indegree=3)
     bn.fit(train_bn)
-    synth_bn_raw = bn.sample(n_test)
     bn_time = time.time() - t1
-    print(f"  [BN] Done in {bn_time:.1f}s. Synthetic shape: {synth_bn_raw.shape}")
-    print(f"  [BN] DAG edges: {len(bn.get_dag())}")
+    print(f"  [BN] Fitted in {bn_time:.1f}s. DAG edges: {len(bn.get_dag())}")
+
+    print(f"  [BN] Generating {M_DATASETS} synthetic datasets...")
+    synth_bn_datasets = []
+    for i in range(M_DATASETS):
+        raw = bn.sample(n_test, seed=42 + i)
+        synth_bn_datasets.append(_coerce_bn_dtypes(raw))
+    print(
+        f"  [BN] Done. Each dataset shape: {synth_bn_datasets[0].shape}"
+    )
 
     # --- CTGAN ---
     print("\n  [CTGAN] Fitting CTGAN (epochs=50)...")
     t1 = time.time()
-    # Use the OHE data for CTGAN (it handles mixed types)
-    # Drop ID columns for training
     train_ctgan_cols = [c for c in train_ohe.columns if c not in ID_COLS]
     train_ctgan_df = train_ohe[train_ctgan_cols].copy()
     ctgan_meta = SingleTableMetadata()
     ctgan_meta.detect_from_dataframe(train_ctgan_df)
-    ctgan_model = CTGANSynthesizer(ctgan_meta, epochs=50, batch_size=500, pac=1, verbose=False)
+    ctgan_model = CTGANSynthesizer(
+        ctgan_meta, epochs=50, batch_size=500, pac=1, verbose=False,
+    )
     ctgan_model.fit(train_ctgan_df)
-    synth_ctgan = ctgan_model.sample(num_rows=n_test)
     ctgan_time = time.time() - t1
-    print(f"  [CTGAN] Done in {ctgan_time:.1f}s. Synthetic shape: {synth_ctgan.shape}")
+    print(f"  [CTGAN] Fitted in {ctgan_time:.1f}s.")
+
+    print(f"  [CTGAN] Generating {M_DATASETS} synthetic datasets...")
+    synth_ctgan_datasets = [
+        ctgan_model.sample(num_rows=n_test) for _ in range(M_DATASETS)
+    ]
+    print(
+        f"  [CTGAN] Done. Each dataset shape: "
+        f"{synth_ctgan_datasets[0].shape}"
+    )
 
     # --- TVAE ---
     print("\n  [TVAE] Fitting TVAE (epochs=50)...")
@@ -217,294 +493,225 @@ def main():
     tvae_meta.detect_from_dataframe(train_ctgan_df)
     tvae_model = TVAESynthesizer(tvae_meta, epochs=50, batch_size=500)
     tvae_model.fit(train_ctgan_df)
-    synth_tvae = tvae_model.sample(num_rows=n_test)
     tvae_time = time.time() - t1
-    print(f"  [TVAE] Done in {tvae_time:.1f}s. Synthetic shape: {synth_tvae.shape}")
+    print(f"  [TVAE] Fitted in {tvae_time:.1f}s.")
 
-    # Add stroke_subtype and gender to synthetic data for comparisons
-    synth_ctgan_eval = synth_ctgan.copy()
-    synth_tvae_eval = synth_tvae.copy()
-    synth_ctgan_eval["stroke_subtype"] = _reverse_ohe_stroke(synth_ctgan)
-    synth_tvae_eval["stroke_subtype"] = _reverse_ohe_stroke(synth_tvae)
-    synth_ctgan_eval["gender"] = _reverse_ohe_gender(synth_ctgan)
-    synth_tvae_eval["gender"] = _reverse_ohe_gender(synth_tvae)
-
-    # For BN synthetic data: convert category dtypes to proper numeric/string
-    synth_bn = synth_bn_raw.copy()
-    for col in synth_bn.columns:
-        if synth_bn[col].dtype.name == "category":
-            # Try converting to numeric first
-            try:
-                synth_bn[col] = pd.to_numeric(synth_bn[col])
-            except (ValueError, TypeError):
-                synth_bn[col] = synth_bn[col].astype(str)
+    print(f"  [TVAE] Generating {M_DATASETS} synthetic datasets...")
+    synth_tvae_datasets = [
+        tvae_model.sample(num_rows=n_test) for _ in range(M_DATASETS)
+    ]
+    print(
+        f"  [TVAE] Done. Each dataset shape: "
+        f"{synth_tvae_datasets[0].shape}"
+    )
 
     results["model_training_times"] = {
         "bn_seconds": round(bn_time, 1),
         "ctgan_seconds": round(ctgan_time, 1),
         "tvae_seconds": round(tvae_time, 1),
     }
+    results["m_datasets"] = M_DATASETS
+
+    datasets_map = {
+        "BN": synth_bn_datasets,
+        "CTGAN": synth_ctgan_datasets,
+        "TVAE": synth_tvae_datasets,
+    }
 
     # ==================================================================
-    # 3. FIDELITY METRICS
+    # 2b. BN edge analysis for paradoxical associations
     # ==================================================================
     print("\n" + "=" * 70)
-    print("STEP 3: Computing fidelity metrics")
+    print("STEP 2b: BN edge analysis (paradoxical associations)")
     print("=" * 70)
 
-    # Get common numeric columns for OHE-based comparisons
+    edge_analysis = bn.analyse_edges(
+        target="hospital_expire_flag",
+        parents_of_interest=[
+            "has_hypertension",
+            "has_dyslipidemia",
+            "has_diabetes",
+            "has_afib",
+        ],
+    )
+    results["bn_edge_analysis"] = edge_analysis
+    print(f"  Edges into hospital_expire_flag: {edge_analysis['edges']}")
+    print(f"  Parents analysed: {edge_analysis['parents']}")
+    cpd_summary = edge_analysis.get("cpd_summary", {})
+    if "conditional_probabilities" in cpd_summary:
+        for combo, probs in cpd_summary["conditional_probabilities"].items():
+            print(f"    {combo}: {probs}")
+
+    # ==================================================================
+    # 3. FIDELITY METRICS (pooled across M datasets)
+    # ==================================================================
+    print("\n" + "=" * 70)
+    print(
+        f"STEP 3: Computing fidelity metrics "
+        f"(pooled over {M_DATASETS} datasets)"
+    )
+    print("=" * 70)
+
     real_test_numeric = test_ohe[_get_numeric_cols(test_ohe)]
 
-    fidelity = {}
-    for model_name, synth_df in [("BN", synth_bn), ("CTGAN", synth_ctgan), ("TVAE", synth_tvae)]:
-        print(f"\n  [{model_name}] Computing fidelity metrics...")
-        model_fidelity = {}
-
-        # For BN, we compare on BN feature columns (numeric only)
-        if model_name == "BN":
-            bn_num_cols = [
-                c
-                for c in synth_bn.columns
-                if synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
-                and c not in ID_COLS
-            ]
-            real_for_bn = test_bn[[c for c in bn_num_cols if c in test_bn.columns]]
-            synth_for_bn = synth_bn[[c for c in bn_num_cols if c in synth_bn.columns]]
-
-            dwd = dimension_wise_distribution(real_for_bn, synth_for_bn)
-            cp = correlation_preservation(real_for_bn, synth_for_bn)
-            ds = discriminator_score(real_for_bn, synth_for_bn)
-        else:
-            synth_num = synth_df[_get_numeric_cols(synth_df)]
-            dwd = dimension_wise_distribution(real_test_numeric, synth_num)
-            cp = correlation_preservation(real_test_numeric, synth_num)
-            ds = discriminator_score(real_test_numeric, synth_num)
-
-        model_fidelity["avg_ks_pvalue"] = round(dwd["avg_pvalue"], 4)
-        model_fidelity["frobenius_distance"] = round(cp["frobenius_distance"], 4)
-        model_fidelity["discriminator_auc"] = round(ds["auc"], 4)
-        model_fidelity["discriminator_auc_std"] = round(ds["auc_std"], 4)
-
-        # Medical concept abundance for stroke_subtype
-        if model_name == "BN":
-            if "stroke_subtype" in synth_bn.columns and "stroke_subtype" in test_bn.columns:
-                mca = medical_concept_abundance(test_bn, synth_bn, "stroke_subtype")
-                model_fidelity["mca_manhattan"] = round(mca["manhattan_distance"], 4)
-                model_fidelity["mca_real_dist"] = {
-                    str(k): round(v, 4) for k, v in mca["real_dist"].items()
-                }
-                model_fidelity["mca_synth_dist"] = {
-                    str(k): round(v, 4) for k, v in mca["synth_dist"].items()
-                }
-            else:
-                model_fidelity["mca_manhattan"] = None
-        else:
-            eval_df = synth_ctgan_eval if model_name == "CTGAN" else synth_tvae_eval
-            mca = medical_concept_abundance(test_ohe_eval, eval_df, "stroke_subtype")
-            model_fidelity["mca_manhattan"] = round(mca["manhattan_distance"], 4)
-            model_fidelity["mca_real_dist"] = {
-                str(k): round(v, 4) for k, v in mca["real_dist"].items()
-            }
-            model_fidelity["mca_synth_dist"] = {
-                str(k): round(v, 4) for k, v in mca["synth_dist"].items()
-            }
-
-        fidelity[model_name] = model_fidelity
-        print(f"    KS avg p-value: {model_fidelity['avg_ks_pvalue']}")
-        print(f"    Frobenius dist: {model_fidelity['frobenius_distance']}")
-        print(f"    Disc AUC:       {model_fidelity['discriminator_auc']}")
-        print(f"    MCA Manhattan:  {model_fidelity['mca_manhattan']}")
-
-    results["fidelity"] = fidelity
-
-    # ==================================================================
-    # 4. CLINICAL PLAUSIBILITY
-    # ==================================================================
-    print("\n" + "=" * 70)
-    print("STEP 4: Clinical plausibility rules")
-    print("=" * 70)
-
-    clinical = {}
-    for label, df in [
-        ("Real", test_ohe_eval),
-        ("BN", synth_bn),
-        ("CTGAN", synth_ctgan_eval),
-        ("TVAE", synth_tvae_eval),
-    ]:
-        # BN data is already on the clinical scale (inverse-discretized);
-        # OHE-based data (Real, CTGAN, TVAE) needs inverse-normalization.
-        use_norm = norm_params if label != "BN" else None
-        cr = check_clinical_rules(df, norm_params=use_norm)
-        clinical[label] = {
-            "total_violation_rate": round(cr["total_violation_rate"], 4),
-            "total_violations": cr["total_violations"],
-            "per_rule": {
-                rule: {
-                    "violations": info["violations"],
-                    "violation_rate": round(info["violation_rate"], 4),
-                }
-                for rule, info in cr["per_rule"].items()
-            },
-        }
+    fidelity_pooled: dict = {}
+    fidelity_per_dataset: dict = {}
+    for model_name in ["BN", "CTGAN", "TVAE"]:
         print(
-            f"  [{label}] Total violation rate: {cr['total_violation_rate']:.4f} ({cr['total_violations']} violations)"
+            f"\n  [{model_name}] Computing fidelity "
+            f"across {M_DATASETS} datasets..."
         )
+        per_ds = []
+        for synth_df in datasets_map[model_name]:
+            m = _compute_fidelity_single(
+                model_name,
+                synth_df,
+                real_test_numeric,
+                test_bn,
+                test_ohe_eval,
+            )
+            per_ds.append(m)
 
-    results["clinical_plausibility"] = clinical
+        fidelity_per_dataset[model_name] = per_ds
+        pooled = pool_metric_dict(per_ds)
+        fidelity_pooled[model_name] = pooled
 
-    # ==================================================================
-    # 5. UTILITY (TSTR)
-    # ==================================================================
-    print("\n" + "=" * 70)
-    print("STEP 5: Utility (TSTR) evaluation")
-    print("=" * 70)
+        for key in [
+            "avg_ks_pvalue",
+            "frobenius_distance",
+            "discriminator_auc",
+            "mca_manhattan",
+        ]:
+            print(f"    {key}: {_pooled_val(pooled, key)}")
 
-    utility = {}
-    train_cols = [c for c in train_ohe.columns if c not in ID_COLS]
-
-    for model_name, synth_df in [("BN", None), ("CTGAN", synth_ctgan), ("TVAE", synth_tvae)]:
-        print(f"\n  [{model_name}] Running TSTR...")
-        if model_name == "BN":
-            # BN synthetic data has different columns — need to map to OHE format
-            # We'll use the BN features that overlap with train numeric columns
-            bn_num = [
-                c
-                for c in synth_bn.columns
-                if c not in ID_COLS
-                and synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
-                and c != "hospital_expire_flag"
-            ]
-            common_feat = [c for c in bn_num if c in train_ohe.columns and c in test_ohe.columns]
-            if "hospital_expire_flag" in synth_bn.columns and len(common_feat) > 0:
-                bn_synth_for_tstr = synth_bn[common_feat + ["hospital_expire_flag"]].copy()
-                bn_train_for_tstr = train_ohe[common_feat + ["hospital_expire_flag"]].copy()
-                bn_test_for_tstr = test_ohe[common_feat + ["hospital_expire_flag"]].copy()
-                tstr = tstr_evaluation(bn_train_for_tstr, bn_synth_for_tstr, bn_test_for_tstr)
-            else:
-                tstr = {
-                    "trtr_auc": 0,
-                    "tstr_auc": 0,
-                    "auc_gap": 0,
-                    "lr_trtr_auc": 0,
-                    "lr_tstr_auc": 0,
-                    "rf_trtr_auc": 0,
-                    "rf_tstr_auc": 0,
-                }
-        else:
-            # Ensure hospital_expire_flag is present
-            if "hospital_expire_flag" not in synth_df.columns:
-                print(f"    WARNING: hospital_expire_flag not in {model_name} synthetic data")
-                tstr = {"trtr_auc": 0, "tstr_auc": 0, "auc_gap": 0}
-            else:
-                try:
-                    tstr = tstr_evaluation(train_ohe[train_cols], synth_df, test_ohe[train_cols])
-                except ValueError as e:
-                    print(f"    WARNING: TSTR failed for {model_name}: {e}")
-                    tstr = {
-                        "trtr_auc": 0,
-                        "tstr_auc": 0,
-                        "auc_gap": 0,
-                        "lr_trtr_auc": 0,
-                        "lr_tstr_auc": 0,
-                        "rf_trtr_auc": 0,
-                        "rf_tstr_auc": 0,
-                        "error": str(e),
-                    }
-
-        utility[model_name] = {
-            k: round(v, 4) if isinstance(v, (int, float)) else v for k, v in tstr.items()
-        }
-        print(f"    TRTR AUC: {tstr.get('trtr_auc', 0):.4f}")
-        print(f"    TSTR AUC: {tstr.get('tstr_auc', 0):.4f}")
-        print(f"    Gap:      {tstr.get('auc_gap', 0):.4f}")
-
-    results["utility"] = utility
+    results["fidelity"] = fidelity_pooled
 
     # ==================================================================
-    # 6. PRIVACY METRICS
+    # 4. CLINICAL PLAUSIBILITY (pooled across M datasets)
     # ==================================================================
     print("\n" + "=" * 70)
-    print("STEP 6: Privacy metrics")
+    print(
+        f"STEP 4: Clinical plausibility rules "
+        f"(pooled over {M_DATASETS} datasets)"
+    )
     print("=" * 70)
 
-    privacy = {}
-    quasi_ids_ohe = [c for c in _get_numeric_cols(train_ohe) if c != "hospital_expire_flag"][
-        :10
-    ]  # Top 10 numeric features
-
-    # Inverse-normalize training data once so all privacy comparisons
-    # happen on the *original clinical scale*.
-    train_ohe_clinical = (
-        inverse_normalize(train_ohe, norm_params) if norm_params else train_ohe.copy()
+    # Real data: computed once (fixed dataset, no pooling needed)
+    cr_real = check_clinical_rules(test_ohe_eval, norm_params=norm_params)
+    clinical_real = {
+        "total_violation_rate": round(cr_real["total_violation_rate"], 4),
+        "total_violations": cr_real["total_violations"],
+        "per_rule": {
+            rule: {
+                "violations": info["violations"],
+                "violation_rate": round(info["violation_rate"], 4),
+            }
+            for rule, info in cr_real["per_rule"].items()
+        },
+    }
+    print(
+        f"  [Real] Total violation rate: "
+        f"{cr_real['total_violation_rate']:.4f} "
+        f"({cr_real['total_violations']} violations)"
     )
 
-    for model_name, synth_df in [("BN", None), ("CTGAN", synth_ctgan), ("TVAE", synth_tvae)]:
-        print(f"\n  [{model_name}] Computing privacy metrics...")
-        model_privacy = {}
-
-        if model_name == "BN":
-            # BN synthetic data is already on the clinical scale.
-            bn_num = [
-                c
-                for c in synth_bn.columns
-                if synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
-                and c not in ID_COLS
-            ]
-            common = [c for c in bn_num if c in train_ohe_clinical.columns]
-            if common:
-                real_priv = train_ohe_clinical[common]
-                synth_priv = synth_bn[common]
-                mia = membership_inference_attack(real_priv, synth_priv)
-                nnd = nearest_neighbor_distance(real_priv, synth_priv)
-
-                # AIA: predict hospital_expire_flag from other features
-                qi = [c for c in common if c != "hospital_expire_flag"][:8]
-                if "hospital_expire_flag" in synth_bn.columns:
-                    aia = attribute_inference_attack(
-                        train_ohe_clinical, synth_bn, "hospital_expire_flag", qi
-                    )
-                else:
-                    aia = {"aia_accuracy": 0}
-            else:
-                mia = {"mia_f1": 0, "median_nn_distance": 0, "mean_nn_distance": 0}
-                nnd = {"mean_dcr": 0, "median_dcr": 0, "min_dcr": 0, "p5_dcr": 0}
-                aia = {"aia_accuracy": 0}
-        else:
-            # CTGAN / TVAE: inverse-normalize synthetic data to clinical scale.
-            synth_clinical = (
-                inverse_normalize(synth_df, norm_params) if norm_params else synth_df.copy()
+    clinical_pooled: dict = {}
+    clinical_per_dataset: dict = {}
+    for model_name in ["BN", "CTGAN", "TVAE"]:
+        print(
+            f"  [{model_name}] Computing plausibility "
+            f"across {M_DATASETS} datasets..."
+        )
+        per_ds = []
+        for synth_df in datasets_map[model_name]:
+            m = _compute_plausibility_single(
+                model_name, synth_df, norm_params,
             )
-            mia = membership_inference_attack(
-                train_ohe_clinical[_get_numeric_cols(train_ohe_clinical)],
-                synth_clinical[_get_numeric_cols(synth_clinical)],
-            )
-            nnd = nearest_neighbor_distance(
-                train_ohe_clinical[_get_numeric_cols(train_ohe_clinical)],
-                synth_clinical[_get_numeric_cols(synth_clinical)],
-            )
-            # AIA: predict hospital_expire_flag
-            qi = [c for c in quasi_ids_ohe if c in train_ohe_clinical.columns][:10]
-            aia = attribute_inference_attack(
-                train_ohe_clinical, synth_clinical, "hospital_expire_flag", qi
-            )
+            per_ds.append(m)
 
-        model_privacy["mia_f1"] = round(mia["mia_f1"], 4)
-        model_privacy["median_nn_distance"] = round(mia.get("median_nn_distance", 0), 4)
-        model_privacy["mean_dcr"] = round(nnd["mean_dcr"], 4)
-        model_privacy["median_dcr"] = round(nnd["median_dcr"], 4)
-        model_privacy["min_dcr"] = round(nnd["min_dcr"], 4)
-        model_privacy["p5_dcr"] = round(nnd["p5_dcr"], 4)
-        model_privacy["aia_accuracy"] = round(aia["aia_accuracy"], 4)
+        clinical_per_dataset[model_name] = per_ds
+        pooled = pool_metric_dict(per_ds)
+        clinical_pooled[model_name] = pooled
+        print(
+            f"    total_violation_rate: "
+            f"{_pooled_val(pooled, 'total_violation_rate')}"
+        )
 
-        privacy[model_name] = model_privacy
-        print(f"    MIA F1:       {model_privacy['mia_f1']}")
-        print(f"    Mean DCR:     {model_privacy['mean_dcr']}")
-        print(f"    AIA Accuracy: {model_privacy['aia_accuracy']}")
-
-    results["privacy"] = privacy
+    results["clinical_plausibility"] = {
+        "Real": clinical_real,
+        "pooled": clinical_pooled,
+    }
 
     # ==================================================================
-    # 7. TEMPORAL METRICS (DGAN)
+    # 5. UTILITY / TSTR (pooled across M datasets)
+    # ==================================================================
+    print("\n" + "=" * 70)
+    print(
+        f"STEP 5: Utility (TSTR) evaluation "
+        f"(pooled over {M_DATASETS} datasets)"
+    )
+    print("=" * 70)
+
+    utility_pooled: dict = {}
+    utility_per_dataset: dict = {}
+    for model_name in ["BN", "CTGAN", "TVAE"]:
+        print(
+            f"\n  [{model_name}] Running TSTR "
+            f"across {M_DATASETS} datasets..."
+        )
+        per_ds = []
+        for synth_df in datasets_map[model_name]:
+            m = _compute_utility_single(
+                model_name, synth_df, train_ohe, test_ohe,
+            )
+            per_ds.append(m)
+
+        utility_per_dataset[model_name] = per_ds
+        pooled = pool_metric_dict(per_ds)
+        utility_pooled[model_name] = pooled
+
+        for key in ["trtr_auc", "tstr_auc", "auc_gap"]:
+            print(f"    {key}: {_pooled_val(pooled, key)}")
+
+    results["utility"] = utility_pooled
+
+    # ==================================================================
+    # 6. PRIVACY METRICS (pooled across M datasets)
+    # ==================================================================
+    print("\n" + "=" * 70)
+    print(
+        f"STEP 6: Privacy metrics (pooled over {M_DATASETS} datasets)"
+    )
+    print("=" * 70)
+
+    # Inverse-normalize training data once
+    train_ohe_clinical = inverse_normalize(train_ohe, norm_params)
+
+    privacy_pooled: dict = {}
+    privacy_per_dataset: dict = {}
+    for model_name in ["BN", "CTGAN", "TVAE"]:
+        print(
+            f"\n  [{model_name}] Computing privacy "
+            f"across {M_DATASETS} datasets..."
+        )
+        per_ds = []
+        for synth_df in datasets_map[model_name]:
+            m = _compute_privacy_single(
+                model_name, synth_df, train_ohe_clinical, norm_params,
+            )
+            per_ds.append(m)
+
+        privacy_per_dataset[model_name] = per_ds
+        pooled = pool_metric_dict(per_ds)
+        privacy_pooled[model_name] = pooled
+
+        for key in ["mia_f1", "mean_dcr", "aia_accuracy"]:
+            print(f"    {key}: {_pooled_val(pooled, key)}")
+
+    results["privacy"] = privacy_pooled
+
+    # ==================================================================
+    # 7. TEMPORAL METRICS (DGAN -- single evaluation, not pooled)
     # ==================================================================
     print("\n" + "=" * 70)
     print("STEP 7: Temporal evaluation (DGAN)")
@@ -512,45 +719,48 @@ def main():
 
     temporal = {}
     try:
-        # Prepare time-series data for DGAN
         ts_features = ["hr", "sbp", "dbp", "map", "rr", "spo2", "temp_c"]
         meta_features = ["anchor_age", "hospital_expire_flag"]
 
-        # Get unique stay_ids with enough timesteps
         stay_counts = ts_df.groupby("stay_id").size()
         valid_stays = stay_counts[stay_counts >= 24].index.tolist()
         print(f"  Stays with >=24 timesteps: {len(valid_stays)}")
 
-        # Subsample to max 200 patients
         np.random.seed(42)
         if len(valid_stays) > 200:
-            selected_stays = np.random.choice(valid_stays, 200, replace=False)
+            selected_stays = np.random.choice(
+                valid_stays, 200, replace=False,
+            )
         else:
             selected_stays = valid_stays[:200]
         print(f"  Using {len(selected_stays)} patients for DGAN")
 
-        # Build 3D array: (n_patients, seq_len=24, n_features)
         seq_len = 24
         sequences = []
         metadata_list = []
-
-        # Get static metadata for selected stays
         full_static_map = full_static.set_index("stay_id")
 
         for sid in selected_stays:
             ts_patient = ts_df[ts_df["stay_id"] == sid].sort_values("hour")
-            ts_vals = ts_patient[ts_features].fillna(method="ffill").fillna(0).values
+            ts_vals = (
+                ts_patient[ts_features]
+                .fillna(method="ffill")
+                .fillna(0)
+                .values
+            )
             if len(ts_vals) < seq_len:
                 continue
             ts_vals = ts_vals[:seq_len]
             sequences.append(ts_vals)
 
-            # Get metadata
             if sid in full_static_map.index:
                 row = full_static_map.loc[sid]
                 if isinstance(row, pd.DataFrame):
                     row = row.iloc[0]
-                meta = [float(row.get("anchor_age", 65)), float(row.get("hospital_expire_flag", 0))]
+                meta = [
+                    float(row.get("anchor_age", 65)),
+                    float(row.get("hospital_expire_flag", 0)),
+                ]
             else:
                 meta = [65.0, 0.0]
             metadata_list.append(meta)
@@ -560,21 +770,18 @@ def main():
         print(f"  Sequences shape: {sequences.shape}")
         print(f"  Metadata shape:  {metadata_arr.shape}")
 
-        # Normalize sequences to [-1, 1]
         seq_min = sequences.min(axis=(0, 1), keepdims=True)
         seq_max = sequences.max(axis=(0, 1), keepdims=True)
         seq_range = seq_max - seq_min
         seq_range[seq_range == 0] = 1
         sequences_norm = 2 * (sequences - seq_min) / seq_range - 1
 
-        # Normalize metadata
         meta_min = metadata_arr.min(axis=0, keepdims=True)
         meta_max = metadata_arr.max(axis=0, keepdims=True)
         meta_range = meta_max - meta_min
         meta_range[meta_range == 0] = 1
         metadata_norm = 2 * (metadata_arr - meta_min) / meta_range - 1
 
-        # Fit DGAN
         print("  Training DGAN (epochs=10, hidden_dim=32)...")
         t1 = time.time()
         dgan = StrokeTimeSeriesDGAN(
@@ -591,33 +798,39 @@ def main():
         dgan_time = time.time() - t1
         print(f"  DGAN trained in {dgan_time:.1f}s")
 
-        # Generate synthetic sequences
         synth_ts = dgan.generate(metadata_norm)
         print(f"  Synthetic TS shape: {synth_ts.shape}")
 
-        # DTW distance
         print("  Computing DTW distances...")
         dtw_res = dtw_distance_matrix(
-            sequences_norm, synth_ts, n_samples=min(100, len(sequences_norm))
+            sequences_norm,
+            synth_ts,
+            n_samples=min(100, len(sequences_norm)),
         )
         temporal["dtw"] = {k: round(v, 4) for k, v in dtw_res.items()}
         print(f"    Mean DTW: {dtw_res['mean_dtw']:.4f}")
 
-        # Autocorrelation comparison
         print("  Computing autocorrelation comparison...")
-        acf_res = autocorrelation_comparison(sequences_norm, synth_ts, ts_features, max_lag=12)
+        acf_res = autocorrelation_comparison(
+            sequences_norm, synth_ts, ts_features, max_lag=12,
+        )
         temporal["autocorrelation"] = {}
         for feat, vals in acf_res.items():
             temporal["autocorrelation"][feat] = {
                 "mean_diff": round(vals["mean_diff"], 4),
                 "max_diff": round(vals["max_diff"], 4),
             }
-            print(f"    {feat}: mean_diff={vals['mean_diff']:.4f}, max_diff={vals['max_diff']:.4f}")
+            print(
+                f"    {feat}: mean_diff={vals['mean_diff']:.4f}, "
+                f"max_diff={vals['max_diff']:.4f}"
+            )
 
         temporal["dgan_training_time"] = round(dgan_time, 1)
         temporal["n_patients"] = len(sequences_norm)
         temporal["seq_len"] = seq_len
-        results["model_training_times"]["dgan_seconds"] = round(dgan_time, 1)
+        results["model_training_times"]["dgan_seconds"] = round(
+            dgan_time, 1,
+        )
 
     except Exception as e:
         print(f"  ERROR in temporal evaluation: {e}")
@@ -633,6 +846,13 @@ def main():
     print("STEP 8: Saving results")
     print("=" * 70)
 
+    results["per_dataset"] = {
+        "fidelity": fidelity_per_dataset,
+        "clinical_plausibility": clinical_per_dataset,
+        "utility": utility_per_dataset,
+        "privacy": privacy_per_dataset,
+    }
+
     results_clean = _clean_for_json(results)
     json_path = os.path.join(OUTPUT_DIR, "evaluation_results.json")
     with open(json_path, "w") as f:
@@ -640,54 +860,67 @@ def main():
     print(f"  Saved: {json_path}")
 
     # ==================================================================
-    # 9. Generate CSV tables
+    # 9. Generate CSV tables (with pooled estimates and 95% CIs)
     # ==================================================================
 
-    # --- Table 4: Fidelity comparison ---
+    # --- Table 4: Fidelity comparison (pooled) ---
     table4_rows = []
     for model in ["BN", "CTGAN", "TVAE"]:
-        f = fidelity[model]
+        p = fidelity_pooled[model]
         table4_rows.append(
             {
                 "Model": model,
-                "Avg KS p-value": f["avg_ks_pvalue"],
-                "Frobenius Distance": f["frobenius_distance"],
-                "Discriminator AUC": f["discriminator_auc"],
-                "MCA Manhattan": f["mca_manhattan"],
+                "Avg KS p-value": _pooled_val(p, "avg_ks_pvalue"),
+                "Frobenius Distance": _pooled_val(
+                    p, "frobenius_distance",
+                ),
+                "Discriminator AUC": _pooled_val(
+                    p, "discriminator_auc",
+                ),
+                "MCA Manhattan": _pooled_val(p, "mca_manhattan"),
             }
         )
     table4 = pd.DataFrame(table4_rows)
-    table4_path = os.path.join(TABLES_DIR, "table4_fidelity_comparison.csv")
+    table4_path = os.path.join(
+        TABLES_DIR, "table4_fidelity_comparison.csv",
+    )
     table4.to_csv(table4_path, index=False)
     print(f"  Saved: {table4_path}")
 
-    # --- Table 5: Clinical rules ---
-    all_rules = list(next(iter(clinical.values()))["per_rule"].keys())
-    table5_rows = []
-    for label in ["Real", "BN", "CTGAN", "TVAE"]:
-        row = {"Dataset": label, "Total Violation Rate": clinical[label]["total_violation_rate"]}
-        for rule in all_rules:
-            row[rule] = clinical[label]["per_rule"][rule]["violation_rate"]
-        table5_rows.append(row)
+    # --- Table 5: Clinical rules (Real + pooled synthetic) ---
+    table5_rows = [
+        {
+            "Dataset": "Real",
+            "Total Violation Rate": (
+                f"{clinical_real['total_violation_rate']:.4f}"
+            ),
+        }
+    ]
+    for model in ["BN", "CTGAN", "TVAE"]:
+        p = clinical_pooled[model]
+        table5_rows.append(
+            {
+                "Dataset": model,
+                "Total Violation Rate": _pooled_val(
+                    p, "total_violation_rate",
+                ),
+            }
+        )
     table5 = pd.DataFrame(table5_rows)
     table5_path = os.path.join(TABLES_DIR, "table5_clinical_rules.csv")
     table5.to_csv(table5_path, index=False)
     print(f"  Saved: {table5_path}")
 
-    # --- Table 6: TSTR results ---
+    # --- Table 6: TSTR results (pooled) ---
     table6_rows = []
     for model in ["BN", "CTGAN", "TVAE"]:
-        u = utility[model]
+        p = utility_pooled[model]
         table6_rows.append(
             {
                 "Model": model,
-                "LR TRTR AUC": u.get("lr_trtr_auc", ""),
-                "LR TSTR AUC": u.get("lr_tstr_auc", ""),
-                "RF TRTR AUC": u.get("rf_trtr_auc", ""),
-                "RF TSTR AUC": u.get("rf_tstr_auc", ""),
-                "Mean TRTR AUC": u.get("trtr_auc", ""),
-                "Mean TSTR AUC": u.get("tstr_auc", ""),
-                "AUC Gap": u.get("auc_gap", ""),
+                "Mean TRTR AUC": _pooled_val(p, "trtr_auc"),
+                "Mean TSTR AUC": _pooled_val(p, "tstr_auc"),
+                "AUC Gap": _pooled_val(p, "auc_gap"),
             }
         )
     table6 = pd.DataFrame(table6_rows)
@@ -695,18 +928,18 @@ def main():
     table6.to_csv(table6_path, index=False)
     print(f"  Saved: {table6_path}")
 
-    # --- Table 7: Privacy metrics ---
+    # --- Table 7: Privacy metrics (pooled) ---
     table7_rows = []
     for model in ["BN", "CTGAN", "TVAE"]:
-        p = privacy[model]
+        p = privacy_pooled[model]
         table7_rows.append(
             {
                 "Model": model,
-                "MIA F1": p["mia_f1"],
-                "Mean DCR": p["mean_dcr"],
-                "Median DCR": p["median_dcr"],
-                "5th %ile DCR": p["p5_dcr"],
-                "AIA Accuracy": p["aia_accuracy"],
+                "MIA F1": _pooled_val(p, "mia_f1"),
+                "Mean DCR": _pooled_val(p, "mean_dcr"),
+                "Median DCR": _pooled_val(p, "median_dcr"),
+                "5th %ile DCR": _pooled_val(p, "p5_dcr"),
+                "AIA Accuracy": _pooled_val(p, "aia_accuracy"),
             }
         )
     table7 = pd.DataFrame(table7_rows)
@@ -724,26 +957,51 @@ def main():
     print("=" * 70)
 
     print(f"\nTotal runtime: {total_time:.0f}s ({total_time / 60:.1f} min)")
-    print(f"Training samples: {len(train_ohe)}, Test samples: {len(test_ohe)}")
+    print(
+        f"Training samples: {len(train_ohe)}, "
+        f"Test samples: {len(test_ohe)}"
+    )
+    print(f"Synthetic datasets per model (Rubin's rules): {M_DATASETS}")
 
-    print("\n--- FIDELITY (Table 4) ---")
+    print("\n--- FIDELITY (Table 4) --- pooled estimates [95% CI] ---")
     print(table4.to_string(index=False))
 
-    print("\n--- CLINICAL RULES (Table 5) ---")
-    print(table5[["Dataset", "Total Violation Rate"]].to_string(index=False))
+    print(
+        "\n--- CLINICAL RULES (Table 5) --- pooled estimates [95% CI] ---"
+    )
+    print(table5.to_string(index=False))
 
-    print("\n--- UTILITY / TSTR (Table 6) ---")
+    print(
+        "\n--- UTILITY / TSTR (Table 6) --- pooled estimates [95% CI] ---"
+    )
     print(table6.to_string(index=False))
 
-    print("\n--- PRIVACY (Table 7) ---")
+    print("\n--- PRIVACY (Table 7) --- pooled estimates [95% CI] ---")
     print(table7.to_string(index=False))
 
     if "dtw" in temporal:
         print("\n--- TEMPORAL ---")
-        print(f"  DTW: mean={temporal['dtw']['mean_dtw']}, median={temporal['dtw']['median_dtw']}")
+        print(
+            f"  DTW: mean={temporal['dtw']['mean_dtw']}, "
+            f"median={temporal['dtw']['median_dtw']}"
+        )
         if "autocorrelation" in temporal:
             for feat, v in temporal["autocorrelation"].items():
-                print(f"  ACF {feat}: mean_diff={v['mean_diff']}, max_diff={v['max_diff']}")
+                print(
+                    f"  ACF {feat}: mean_diff={v['mean_diff']}, "
+                    f"max_diff={v['max_diff']}"
+                )
+
+    if edge_analysis["edges"]:
+        print("\n--- BN EDGE ANALYSIS (paradoxical associations) ---")
+        for edge in edge_analysis["edges"]:
+            print(f"  {edge[0]} -> {edge[1]}")
+        cpd_sum = edge_analysis.get("cpd_summary", {})
+        if "conditional_probabilities" in cpd_sum:
+            for combo, probs in cpd_sum[
+                "conditional_probabilities"
+            ].items():
+                print(f"    {combo}: {probs}")
 
     print("\n" + "=" * 70)
     print("ALL DONE. Results saved to:")

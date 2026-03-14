@@ -4,7 +4,7 @@
 
 # Abstract
 
-**Background.** Stroke remains a leading cause of death and disability worldwide, yet developing and validating clinical decision-support tools is constrained by limited data access, patient privacy concerns, and the inability to perform counterfactual experiments on real patients. Digital twin frameworks that produce high-fidelity synthetic patient replicas offer a promising path to overcome these barriers, but existing generative approaches rarely combine static clinical profiles with realistic temporal ICU physiology for cerebrovascular disease.
+**Background.** Stroke remains a leading cause of death and disability worldwide, yet developing and validating clinical decision-support tools is constrained by limited data access, patient privacy concerns, and the inability to systematically explore alternative clinical scenarios directly in real patients. Digital twin frameworks that produce high-fidelity synthetic patient replicas offer a promising path to overcome these barriers, but existing generative approaches rarely combine static clinical profiles with realistic temporal ICU physiology for cerebrovascular disease.
 
 **Objective.** To develop and evaluate a hybrid generative framework that creates synthetic stroke patient records comprising both static clinical profiles and 72-hour ICU time-series, enabling privacy-preserving data sharing and individual-level associational scenario simulation.
 

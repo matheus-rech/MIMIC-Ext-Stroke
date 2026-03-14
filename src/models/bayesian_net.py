@@ -184,7 +184,8 @@ class StrokeProfileBN:
             evidence_card_map = cpd.get_cardinality(evidence)
             evidence_card = [evidence_card_map[e] for e in evidence]
             parent_states = [
-                cpd.state_names.get(e, list(range(card))) for e, card in zip(evidence, evidence_card)
+                cpd.state_names.get(e, list(range(card)))
+                for e, card in zip(evidence, evidence_card)
             ]
             combos = list(itertools.product(*parent_states))
             target_states = cpd.state_names.get(target, list(range(values.shape[0])))

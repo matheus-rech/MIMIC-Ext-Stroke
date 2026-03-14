@@ -107,6 +107,8 @@ class ScenarioSimulator:
 
         Parameters
         ----------
+        patient_profile : dict
+            A single patient's static features.
         modification : dict
             The attribute changes to test.
         outcome_fn : callable, optional

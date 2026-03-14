@@ -154,14 +154,16 @@ def main():
 
     n_test = len(test_ohe)
 
-    # Load normalization parameters for inverse-normalization
+    # Load normalization parameters for inverse-normalization.
+    # This file is required for correct plausibility and privacy evaluation.
     norm_params_path = os.path.join(COHORT_DIR, "norm_params.json")
-    norm_params: dict | None = None
-    if os.path.exists(norm_params_path):
-        norm_params = load_norm_params(norm_params_path)
-        print(f"  Loaded norm_params: {len(norm_params)} columns")
-    else:
-        print("  WARNING: norm_params.json not found; plausibility will run on raw scale")
+    if not os.path.exists(norm_params_path):
+        raise FileNotFoundError(
+            f"{norm_params_path} not found. This file is required for correct "
+            "evaluation of clinical plausibility and privacy metrics."
+        )
+    norm_params = load_norm_params(norm_params_path)
+    print(f"  Loaded norm_params: {len(norm_params)} columns")
 
     # Prepare BN-compatible data (original categoricals)
     train_bn = _prepare_bn_data(train_ohe, full_static)

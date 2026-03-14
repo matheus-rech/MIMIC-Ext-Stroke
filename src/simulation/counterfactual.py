@@ -25,6 +25,12 @@ class CounterfactualSimulator(ScenarioSimulator):
         )
         super().__init__(hybrid_model=hybrid_model)
 
+    def simulate_scenario(
+        self, patient_profile: dict, intervention: dict, n_samples: int = 10
+    ) -> dict:
+        """Accept legacy *intervention* keyword and forward to *modification*."""
+        return super().simulate_scenario(patient_profile, intervention, n_samples)
+
     def treatment_effect(
         self, patient_profile: dict, treatment: dict, outcome_fn=None, n_samples: int = 50
     ) -> dict:

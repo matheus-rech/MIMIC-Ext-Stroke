@@ -43,6 +43,9 @@ def pool_estimates(
         - ``m``: number of synthetic datasets
     """
     m = len(estimates)
+    if variances is not None and len(variances) != m:
+        raise ValueError("variances must have the same length as estimates")
+
     q_bar = float(np.mean(estimates))
 
     # Between-synthesis variance

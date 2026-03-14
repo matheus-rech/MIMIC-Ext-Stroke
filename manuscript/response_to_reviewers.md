@@ -461,10 +461,9 @@ Several items from the internal peer review (REVIEW.md) overlap with Reviewer 1 
 | 3.8 (rewritten) | "Associational Scenario" replacing "Counterfactual" |
 | 4.2b (expanded) | Paradoxical associations discussion with J-curve, collider bias, statin effects |
 | 4.5 (expanded) | Additional limitations: temporal baselines, BP missingness, GCS intubation |
-| 4.6 (expanded) | Future directions: causal discovery, TimeGAN comparison, expert review |
+| 4.6 (expanded) | Future directions: eICU external validation, causal discovery, TimeGAN comparison, quality measure validation, clinical expert review |
 | Code availability | Repository URL, license, data access instructions |
 | References | Missing references added; citation style standardized |
-| 4.6 (expanded) | eICU external validation, temporal baselines, quality measure validation, clinical expert review, causal discovery |
 
 ---
 

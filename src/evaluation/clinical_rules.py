@@ -70,6 +70,10 @@ def inverse_normalize(
         col_max = params["max"]
         if col_max > col_min:
             result[col] = (result[col] + 1) / 2 * (col_max - col_min) + col_min
+        else:
+            # Constant-range clinical variable — map back to the constant
+            # instead of leaving values in the normalized [-1, 1] scale.
+            result[col] = col_min
     return result
 
 

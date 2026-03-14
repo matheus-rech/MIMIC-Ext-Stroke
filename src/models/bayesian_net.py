@@ -1,5 +1,7 @@
 """Bayesian Network for static stroke patient profile generation."""
 
+import itertools
+
 import pandas as pd
 import numpy as np
 from pgmpy.models import DiscreteBayesianNetwork
@@ -166,23 +168,23 @@ class StrokeProfileBN:
         if cpd is None:
             return {"edges": [], "cpd_summary": {}, "parents": parents}
 
-        # Build a readable summary of the CPD
+        # Build a readable summary of the CPD, using the filtered parents list
         summary: dict = {
             "variable": target,
-            "parents": list(cpd.get_evidence()),
+            "parents": parents,
             "states": list(cpd.state_names.get(target, [])),
         }
 
         # Extract the probability table as a dict keyed by parent state combos
         values = cpd.get_values()  # shape: (target_card, prod(parent_cards))
         evidence = cpd.get_evidence()
-        evidence_card = cpd.get_cardinality(evidence) if evidence else []
-
         if evidence:
-            import itertools
-
+            # get_cardinality returns a dict {var: card} — index explicitly
+            # in evidence order to avoid misalignment.
+            evidence_card_map = cpd.get_cardinality(evidence)
+            evidence_card = [evidence_card_map[e] for e in evidence]
             parent_states = [
-                cpd.state_names.get(e, list(range(c))) for e, c in zip(evidence, evidence_card)
+                cpd.state_names.get(e, list(range(card))) for e, card in zip(evidence, evidence_card)
             ]
             combos = list(itertools.product(*parent_states))
             target_states = cpd.state_names.get(target, list(range(values.shape[0])))

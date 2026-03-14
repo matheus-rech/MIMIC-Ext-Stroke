@@ -139,6 +139,15 @@ def _coerce_bn_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
 def _safe_json(obj):
     """Make object JSON serializable."""
+    # Handle container types first so nested structures are cleaned recursively.
+    if isinstance(obj, dict):
+        # Delegate to _clean_for_json to recursively clean mapping values.
+        return _clean_for_json(obj)
+    if isinstance(obj, (list, tuple)):
+        # Recursively apply _safe_json to each element.
+        return [_safe_json(x) for x in obj]
+
+    # Handle common non-serializable scalar/array types.
     if isinstance(obj, (np.integer,)):
         return int(obj)
     if isinstance(obj, (np.floating,)):

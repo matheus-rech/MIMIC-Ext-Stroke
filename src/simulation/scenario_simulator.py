@@ -108,6 +108,8 @@ class ScenarioSimulator:
         Parameters
         ----------
         patient_profile : dict
+            Baseline patient profile.
+        patient_profile : dict
             A single patient's static features.
         modification : dict
             The attribute changes to test.

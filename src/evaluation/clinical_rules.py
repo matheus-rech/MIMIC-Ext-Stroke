@@ -1,4 +1,5 @@
 """Stroke-specific clinical plausibility rules."""
+
 import json
 from pathlib import Path
 
@@ -43,7 +44,8 @@ RULES = {
 
 
 def inverse_normalize(
-    df: pd.DataFrame, norm_params: dict,
+    df: pd.DataFrame,
+    norm_params: dict,
 ) -> pd.DataFrame:
     """Convert normalized [-1, 1] data back to the original clinical scale.
 
@@ -107,7 +109,5 @@ def check_clinical_rules(
     return {
         "per_rule": results,
         "total_violations": total_violations,
-        "total_violation_rate": (
-            total_violations / (len(df) * len(RULES)) if len(df) > 0 else 0
-        ),
+        "total_violation_rate": (total_violations / (len(df) * len(RULES)) if len(df) > 0 else 0),
     }

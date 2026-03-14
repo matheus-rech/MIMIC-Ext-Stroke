@@ -6,6 +6,7 @@ Generates ICU vital sign trajectories conditioned on static patient metadata.
 Reference: Lin et al., "Using GANs for Sharing Networked Time Series Data:
 Challenges, Initial Promise, and Open Questions" (IMC 2020).
 """
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -15,8 +16,9 @@ from torch.utils.data import DataLoader, TensorDataset
 class Generator(nn.Module):
     """LSTM-based generator: metadata + noise -> time-series."""
 
-    def __init__(self, n_metadata: int, noise_dim: int, hidden_dim: int,
-                 n_features: int, seq_len: int):
+    def __init__(
+        self, n_metadata: int, noise_dim: int, hidden_dim: int, n_features: int, seq_len: int
+    ):
         super().__init__()
         self.seq_len = seq_len
         self.hidden_dim = hidden_dim
@@ -40,8 +42,7 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     """Discriminator: (metadata, time-series) -> real/fake."""
 
-    def __init__(self, n_metadata: int, n_features: int, hidden_dim: int,
-                 seq_len: int):
+    def __init__(self, n_metadata: int, n_features: int, hidden_dim: int, seq_len: int):
         super().__init__()
         self.lstm = nn.LSTM(n_features, hidden_dim, batch_first=True, num_layers=2)
         self.fc_meta = nn.Linear(n_metadata, hidden_dim)
@@ -51,8 +52,7 @@ class Discriminator(nn.Module):
             nn.Linear(hidden_dim, 1),
         )
 
-    def forward(self, metadata: torch.Tensor,
-                sequence: torch.Tensor) -> torch.Tensor:
+    def forward(self, metadata: torch.Tensor, sequence: torch.Tensor) -> torch.Tensor:
         # Process sequence with LSTM
         _, (h_n, _) = self.lstm(sequence)
         seq_embed = h_n[-1]  # Last layer hidden state
@@ -90,10 +90,17 @@ class StrokeTimeSeriesDGAN:
         Learning rate for Adam optimizer.
     """
 
-    def __init__(self, n_features: int, n_metadata: int, seq_len: int,
-                 noise_dim: int = 100, hidden_dim: int = 128,
-                 epochs: int = 500, batch_size: int = 32,
-                 lr: float = 0.0002):
+    def __init__(
+        self,
+        n_features: int,
+        n_metadata: int,
+        seq_len: int,
+        noise_dim: int = 100,
+        hidden_dim: int = 128,
+        epochs: int = 500,
+        batch_size: int = 32,
+        lr: float = 0.0002,
+    ):
         self.n_features = n_features
         self.n_metadata = n_metadata
         self.seq_len = seq_len
@@ -111,16 +118,14 @@ class StrokeTimeSeriesDGAN:
         else:
             self.device = torch.device("cpu")
 
-        self.generator = Generator(
-            n_metadata, noise_dim, hidden_dim, n_features, seq_len
-        ).to(self.device)
-        self.discriminator = Discriminator(
-            n_metadata, n_features, hidden_dim, seq_len
-        ).to(self.device)
-
-        self.g_optimizer = torch.optim.Adam(
-            self.generator.parameters(), lr=lr, betas=(0.5, 0.999)
+        self.generator = Generator(n_metadata, noise_dim, hidden_dim, n_features, seq_len).to(
+            self.device
         )
+        self.discriminator = Discriminator(n_metadata, n_features, hidden_dim, seq_len).to(
+            self.device
+        )
+
+        self.g_optimizer = torch.optim.Adam(self.generator.parameters(), lr=lr, betas=(0.5, 0.999))
         self.d_optimizer = torch.optim.Adam(
             self.discriminator.parameters(), lr=lr, betas=(0.5, 0.999)
         )
@@ -143,9 +148,7 @@ class StrokeTimeSeriesDGAN:
         meta_tensor = torch.FloatTensor(metadata).to(self.device)
         seq_tensor = torch.FloatTensor(sequences).to(self.device)
         dataset = TensorDataset(meta_tensor, seq_tensor)
-        loader = DataLoader(
-            dataset, batch_size=self.batch_size, shuffle=True, drop_last=True
-        )
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=True)
 
         criterion = nn.BCEWithLogitsLoss()
 
@@ -163,9 +166,7 @@ class StrokeTimeSeriesDGAN:
                 d_real = self.discriminator(meta_batch, seq_batch)
                 d_loss_real = criterion(d_real, real_labels)
 
-                noise = torch.randn(
-                    batch_size, self.noise_dim, device=self.device
-                )
+                noise = torch.randn(batch_size, self.noise_dim, device=self.device)
                 fake_seq = self.generator(meta_batch, noise)
                 d_fake = self.discriminator(meta_batch, fake_seq.detach())
                 d_loss_fake = criterion(d_fake, fake_labels)
@@ -178,9 +179,7 @@ class StrokeTimeSeriesDGAN:
                 # Train Generator
                 # ---------------------
                 self.g_optimizer.zero_grad()
-                noise = torch.randn(
-                    batch_size, self.noise_dim, device=self.device
-                )
+                noise = torch.randn(batch_size, self.noise_dim, device=self.device)
                 fake_seq = self.generator(meta_batch, noise)
                 d_fake = self.discriminator(meta_batch, fake_seq)
                 g_loss = criterion(d_fake, real_labels)
@@ -193,8 +192,7 @@ class StrokeTimeSeriesDGAN:
             self.losses["g_loss"].append(float(np.mean(g_losses)))
             self.losses["d_loss"].append(float(np.mean(d_losses)))
 
-    def generate(self, metadata: np.ndarray,
-                 n_per_patient: int = 1) -> np.ndarray:
+    def generate(self, metadata: np.ndarray, n_per_patient: int = 1) -> np.ndarray:
         """Generate time-series conditioned on metadata.
 
         Parameters
@@ -213,30 +211,31 @@ class StrokeTimeSeriesDGAN:
             meta = torch.FloatTensor(metadata).to(self.device)
             if n_per_patient > 1:
                 meta = meta.repeat(n_per_patient, 1)
-            noise = torch.randn(meta.size(0), self.noise_dim,
-                                device=self.device)
+            noise = torch.randn(meta.size(0), self.noise_dim, device=self.device)
             generated = self.generator(meta, noise)
         self.generator.train()
         return generated.cpu().numpy()
 
     def save(self, path: str) -> None:
         """Save model state to disk."""
-        torch.save({
-            "generator": self.generator.state_dict(),
-            "discriminator": self.discriminator.state_dict(),
-            "config": {
-                "n_features": self.n_features,
-                "n_metadata": self.n_metadata,
-                "seq_len": self.seq_len,
-                "noise_dim": self.noise_dim,
-                "hidden_dim": self.hidden_dim,
+        torch.save(
+            {
+                "generator": self.generator.state_dict(),
+                "discriminator": self.discriminator.state_dict(),
+                "config": {
+                    "n_features": self.n_features,
+                    "n_metadata": self.n_metadata,
+                    "seq_len": self.seq_len,
+                    "noise_dim": self.noise_dim,
+                    "hidden_dim": self.hidden_dim,
+                },
             },
-        }, path)
+            path,
+        )
 
     def load(self, path: str) -> None:
         """Load model state from disk."""
-        checkpoint = torch.load(path, map_location=self.device,
-                                weights_only=True)
+        checkpoint = torch.load(path, map_location=self.device, weights_only=True)
         self.generator.load_state_dict(checkpoint["generator"])
         self.discriminator.load_state_dict(checkpoint["discriminator"])
 
@@ -244,5 +243,4 @@ class StrokeTimeSeriesDGAN:
         """Return parameter counts for generator and discriminator."""
         g_params = sum(p.numel() for p in self.generator.parameters())
         d_params = sum(p.numel() for p in self.discriminator.parameters())
-        return {"generator": g_params, "discriminator": d_params,
-                "total": g_params + d_params}
+        return {"generator": g_params, "discriminator": d_params, "total": g_params + d_params}

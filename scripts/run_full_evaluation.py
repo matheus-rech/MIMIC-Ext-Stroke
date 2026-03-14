@@ -5,6 +5,7 @@ Fits BN, CTGAN, TVAE on training data, generates synthetic data,
 and computes all metrics (fidelity, clinical plausibility, utility,
 privacy, temporal). Results are saved to JSON and CSV tables.
 """
+
 import sys
 import os
 import json
@@ -96,10 +97,7 @@ def _prepare_bn_data(df_ohe: pd.DataFrame, df_full: pd.DataFrame) -> pd.DataFram
 
 def _get_numeric_cols(df: pd.DataFrame) -> list:
     """Get numeric columns excluding IDs."""
-    return [
-        c for c in df.select_dtypes(include=[np.number]).columns
-        if c not in ID_COLS
-    ]
+    return [c for c in df.select_dtypes(include=[np.number]).columns if c not in ID_COLS]
 
 
 def _safe_json(obj):
@@ -204,9 +202,7 @@ def main():
     train_ctgan_df = train_ohe[train_ctgan_cols].copy()
     ctgan_meta = SingleTableMetadata()
     ctgan_meta.detect_from_dataframe(train_ctgan_df)
-    ctgan_model = CTGANSynthesizer(
-        ctgan_meta, epochs=50, batch_size=500, pac=1, verbose=False
-    )
+    ctgan_model = CTGANSynthesizer(ctgan_meta, epochs=50, batch_size=500, pac=1, verbose=False)
     ctgan_model.fit(train_ctgan_df)
     synth_ctgan = ctgan_model.sample(num_rows=n_test)
     ctgan_time = time.time() - t1
@@ -217,9 +213,7 @@ def main():
     t1 = time.time()
     tvae_meta = SingleTableMetadata()
     tvae_meta.detect_from_dataframe(train_ctgan_df)
-    tvae_model = TVAESynthesizer(
-        tvae_meta, epochs=50, batch_size=500
-    )
+    tvae_model = TVAESynthesizer(tvae_meta, epochs=50, batch_size=500)
     tvae_model.fit(train_ctgan_df)
     synth_tvae = tvae_model.sample(num_rows=n_test)
     tvae_time = time.time() - t1
@@ -266,9 +260,12 @@ def main():
 
         # For BN, we compare on BN feature columns (numeric only)
         if model_name == "BN":
-            bn_num_cols = [c for c in synth_bn.columns
-                          if synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
-                          and c not in ID_COLS]
+            bn_num_cols = [
+                c
+                for c in synth_bn.columns
+                if synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
+                and c not in ID_COLS
+            ]
             real_for_bn = test_bn[[c for c in bn_num_cols if c in test_bn.columns]]
             synth_for_bn = synth_bn[[c for c in bn_num_cols if c in synth_bn.columns]]
 
@@ -291,16 +288,24 @@ def main():
             if "stroke_subtype" in synth_bn.columns and "stroke_subtype" in test_bn.columns:
                 mca = medical_concept_abundance(test_bn, synth_bn, "stroke_subtype")
                 model_fidelity["mca_manhattan"] = round(mca["manhattan_distance"], 4)
-                model_fidelity["mca_real_dist"] = {str(k): round(v, 4) for k, v in mca["real_dist"].items()}
-                model_fidelity["mca_synth_dist"] = {str(k): round(v, 4) for k, v in mca["synth_dist"].items()}
+                model_fidelity["mca_real_dist"] = {
+                    str(k): round(v, 4) for k, v in mca["real_dist"].items()
+                }
+                model_fidelity["mca_synth_dist"] = {
+                    str(k): round(v, 4) for k, v in mca["synth_dist"].items()
+                }
             else:
                 model_fidelity["mca_manhattan"] = None
         else:
             eval_df = synth_ctgan_eval if model_name == "CTGAN" else synth_tvae_eval
             mca = medical_concept_abundance(test_ohe_eval, eval_df, "stroke_subtype")
             model_fidelity["mca_manhattan"] = round(mca["manhattan_distance"], 4)
-            model_fidelity["mca_real_dist"] = {str(k): round(v, 4) for k, v in mca["real_dist"].items()}
-            model_fidelity["mca_synth_dist"] = {str(k): round(v, 4) for k, v in mca["synth_dist"].items()}
+            model_fidelity["mca_real_dist"] = {
+                str(k): round(v, 4) for k, v in mca["real_dist"].items()
+            }
+            model_fidelity["mca_synth_dist"] = {
+                str(k): round(v, 4) for k, v in mca["synth_dist"].items()
+            }
 
         fidelity[model_name] = model_fidelity
         print(f"    KS avg p-value: {model_fidelity['avg_ks_pvalue']}")
@@ -318,7 +323,12 @@ def main():
     print("=" * 70)
 
     clinical = {}
-    for label, df in [("Real", test_ohe_eval), ("BN", synth_bn), ("CTGAN", synth_ctgan_eval), ("TVAE", synth_tvae_eval)]:
+    for label, df in [
+        ("Real", test_ohe_eval),
+        ("BN", synth_bn),
+        ("CTGAN", synth_ctgan_eval),
+        ("TVAE", synth_tvae_eval),
+    ]:
         # BN data is already on the clinical scale (inverse-discretized);
         # OHE-based data (Real, CTGAN, TVAE) needs inverse-normalization.
         use_norm = norm_params if label != "BN" else None
@@ -334,7 +344,9 @@ def main():
                 for rule, info in cr["per_rule"].items()
             },
         }
-        print(f"  [{label}] Total violation rate: {cr['total_violation_rate']:.4f} ({cr['total_violations']} violations)")
+        print(
+            f"  [{label}] Total violation rate: {cr['total_violation_rate']:.4f} ({cr['total_violations']} violations)"
+        )
 
     results["clinical_plausibility"] = clinical
 
@@ -353,10 +365,13 @@ def main():
         if model_name == "BN":
             # BN synthetic data has different columns — need to map to OHE format
             # We'll use the BN features that overlap with train numeric columns
-            bn_num = [c for c in synth_bn.columns
-                      if c not in ID_COLS
-                      and synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
-                      and c != "hospital_expire_flag"]
+            bn_num = [
+                c
+                for c in synth_bn.columns
+                if c not in ID_COLS
+                and synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
+                and c != "hospital_expire_flag"
+            ]
             common_feat = [c for c in bn_num if c in train_ohe.columns and c in test_ohe.columns]
             if "hospital_expire_flag" in synth_bn.columns and len(common_feat) > 0:
                 bn_synth_for_tstr = synth_bn[common_feat + ["hospital_expire_flag"]].copy()
@@ -364,8 +379,15 @@ def main():
                 bn_test_for_tstr = test_ohe[common_feat + ["hospital_expire_flag"]].copy()
                 tstr = tstr_evaluation(bn_train_for_tstr, bn_synth_for_tstr, bn_test_for_tstr)
             else:
-                tstr = {"trtr_auc": 0, "tstr_auc": 0, "auc_gap": 0,
-                        "lr_trtr_auc": 0, "lr_tstr_auc": 0, "rf_trtr_auc": 0, "rf_tstr_auc": 0}
+                tstr = {
+                    "trtr_auc": 0,
+                    "tstr_auc": 0,
+                    "auc_gap": 0,
+                    "lr_trtr_auc": 0,
+                    "lr_tstr_auc": 0,
+                    "rf_trtr_auc": 0,
+                    "rf_tstr_auc": 0,
+                }
         else:
             # Ensure hospital_expire_flag is present
             if "hospital_expire_flag" not in synth_df.columns:
@@ -373,17 +395,23 @@ def main():
                 tstr = {"trtr_auc": 0, "tstr_auc": 0, "auc_gap": 0}
             else:
                 try:
-                    tstr = tstr_evaluation(
-                        train_ohe[train_cols], synth_df, test_ohe[train_cols]
-                    )
+                    tstr = tstr_evaluation(train_ohe[train_cols], synth_df, test_ohe[train_cols])
                 except ValueError as e:
                     print(f"    WARNING: TSTR failed for {model_name}: {e}")
-                    tstr = {"trtr_auc": 0, "tstr_auc": 0, "auc_gap": 0,
-                            "lr_trtr_auc": 0, "lr_tstr_auc": 0,
-                            "rf_trtr_auc": 0, "rf_tstr_auc": 0,
-                            "error": str(e)}
+                    tstr = {
+                        "trtr_auc": 0,
+                        "tstr_auc": 0,
+                        "auc_gap": 0,
+                        "lr_trtr_auc": 0,
+                        "lr_tstr_auc": 0,
+                        "rf_trtr_auc": 0,
+                        "rf_tstr_auc": 0,
+                        "error": str(e),
+                    }
 
-        utility[model_name] = {k: round(v, 4) if isinstance(v, (int, float)) else v for k, v in tstr.items()}
+        utility[model_name] = {
+            k: round(v, 4) if isinstance(v, (int, float)) else v for k, v in tstr.items()
+        }
         print(f"    TRTR AUC: {tstr.get('trtr_auc', 0):.4f}")
         print(f"    TSTR AUC: {tstr.get('tstr_auc', 0):.4f}")
         print(f"    Gap:      {tstr.get('auc_gap', 0):.4f}")
@@ -398,8 +426,9 @@ def main():
     print("=" * 70)
 
     privacy = {}
-    quasi_ids_ohe = [c for c in _get_numeric_cols(train_ohe)
-                     if c != "hospital_expire_flag"][:10]  # Top 10 numeric features
+    quasi_ids_ohe = [c for c in _get_numeric_cols(train_ohe) if c != "hospital_expire_flag"][
+        :10
+    ]  # Top 10 numeric features
 
     # Inverse-normalize training data once so all privacy comparisons
     # happen on the *original clinical scale*.
@@ -413,9 +442,12 @@ def main():
 
         if model_name == "BN":
             # BN synthetic data is already on the clinical scale.
-            bn_num = [c for c in synth_bn.columns
-                      if synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
-                      and c not in ID_COLS]
+            bn_num = [
+                c
+                for c in synth_bn.columns
+                if synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
+                and c not in ID_COLS
+            ]
             common = [c for c in bn_num if c in train_ohe_clinical.columns]
             if common:
                 real_priv = train_ohe_clinical[common]
@@ -563,7 +595,9 @@ def main():
 
         # DTW distance
         print("  Computing DTW distances...")
-        dtw_res = dtw_distance_matrix(sequences_norm, synth_ts, n_samples=min(100, len(sequences_norm)))
+        dtw_res = dtw_distance_matrix(
+            sequences_norm, synth_ts, n_samples=min(100, len(sequences_norm))
+        )
         temporal["dtw"] = {k: round(v, 4) for k, v in dtw_res.items()}
         print(f"    Mean DTW: {dtw_res['mean_dtw']:.4f}")
 
@@ -611,13 +645,15 @@ def main():
     table4_rows = []
     for model in ["BN", "CTGAN", "TVAE"]:
         f = fidelity[model]
-        table4_rows.append({
-            "Model": model,
-            "Avg KS p-value": f["avg_ks_pvalue"],
-            "Frobenius Distance": f["frobenius_distance"],
-            "Discriminator AUC": f["discriminator_auc"],
-            "MCA Manhattan": f["mca_manhattan"],
-        })
+        table4_rows.append(
+            {
+                "Model": model,
+                "Avg KS p-value": f["avg_ks_pvalue"],
+                "Frobenius Distance": f["frobenius_distance"],
+                "Discriminator AUC": f["discriminator_auc"],
+                "MCA Manhattan": f["mca_manhattan"],
+            }
+        )
     table4 = pd.DataFrame(table4_rows)
     table4_path = os.path.join(TABLES_DIR, "table4_fidelity_comparison.csv")
     table4.to_csv(table4_path, index=False)
@@ -640,16 +676,18 @@ def main():
     table6_rows = []
     for model in ["BN", "CTGAN", "TVAE"]:
         u = utility[model]
-        table6_rows.append({
-            "Model": model,
-            "LR TRTR AUC": u.get("lr_trtr_auc", ""),
-            "LR TSTR AUC": u.get("lr_tstr_auc", ""),
-            "RF TRTR AUC": u.get("rf_trtr_auc", ""),
-            "RF TSTR AUC": u.get("rf_tstr_auc", ""),
-            "Mean TRTR AUC": u.get("trtr_auc", ""),
-            "Mean TSTR AUC": u.get("tstr_auc", ""),
-            "AUC Gap": u.get("auc_gap", ""),
-        })
+        table6_rows.append(
+            {
+                "Model": model,
+                "LR TRTR AUC": u.get("lr_trtr_auc", ""),
+                "LR TSTR AUC": u.get("lr_tstr_auc", ""),
+                "RF TRTR AUC": u.get("rf_trtr_auc", ""),
+                "RF TSTR AUC": u.get("rf_tstr_auc", ""),
+                "Mean TRTR AUC": u.get("trtr_auc", ""),
+                "Mean TSTR AUC": u.get("tstr_auc", ""),
+                "AUC Gap": u.get("auc_gap", ""),
+            }
+        )
     table6 = pd.DataFrame(table6_rows)
     table6_path = os.path.join(TABLES_DIR, "table6_tstr_results.csv")
     table6.to_csv(table6_path, index=False)
@@ -659,14 +697,16 @@ def main():
     table7_rows = []
     for model in ["BN", "CTGAN", "TVAE"]:
         p = privacy[model]
-        table7_rows.append({
-            "Model": model,
-            "MIA F1": p["mia_f1"],
-            "Mean DCR": p["mean_dcr"],
-            "Median DCR": p["median_dcr"],
-            "5th %ile DCR": p["p5_dcr"],
-            "AIA Accuracy": p["aia_accuracy"],
-        })
+        table7_rows.append(
+            {
+                "Model": model,
+                "MIA F1": p["mia_f1"],
+                "Mean DCR": p["mean_dcr"],
+                "Median DCR": p["median_dcr"],
+                "5th %ile DCR": p["p5_dcr"],
+                "AIA Accuracy": p["aia_accuracy"],
+            }
+        )
     table7 = pd.DataFrame(table7_rows)
     table7_path = os.path.join(TABLES_DIR, "table7_privacy_metrics.csv")
     table7.to_csv(table7_path, index=False)
@@ -681,7 +721,7 @@ def main():
     print("EVALUATION SUMMARY")
     print("=" * 70)
 
-    print(f"\nTotal runtime: {total_time:.0f}s ({total_time/60:.1f} min)")
+    print(f"\nTotal runtime: {total_time:.0f}s ({total_time / 60:.1f} min)")
     print(f"Training samples: {len(train_ohe)}, Test samples: {len(test_ohe)}")
 
     print("\n--- FIDELITY (Table 4) ---")

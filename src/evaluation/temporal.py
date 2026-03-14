@@ -2,12 +2,12 @@
 
 Implements DTW distance and autocorrelation comparison (Achterberg 2024).
 """
+
 import numpy as np
 from scipy.spatial.distance import cdist
 
 
-def dtw_distance_matrix(real: np.ndarray, synth: np.ndarray,
-                        n_samples: int = 100) -> dict:
+def dtw_distance_matrix(real: np.ndarray, synth: np.ndarray, n_samples: int = 100) -> dict:
     """Compute DTW distances between real and synthetic time-series.
 
     Parameters
@@ -40,8 +40,9 @@ def dtw_distance_matrix(real: np.ndarray, synth: np.ndarray,
     }
 
 
-def autocorrelation_comparison(real: np.ndarray, synth: np.ndarray,
-                               feature_names: list, max_lag: int = 12) -> dict:
+def autocorrelation_comparison(
+    real: np.ndarray, synth: np.ndarray, feature_names: list, max_lag: int = 12
+) -> dict:
     """Compare autocorrelation functions between real and synthetic."""
     results = {}
 
@@ -83,6 +84,6 @@ def _autocorr(x, max_lag):
     if var == 0:
         return None
     acf = np.correlate(x, x, mode="full")
-    acf = acf[len(acf) // 2:]
-    acf = acf[:max_lag + 1] / (var * len(x))
+    acf = acf[len(acf) // 2 :]
+    acf = acf[: max_lag + 1] / (var * len(x))
     return acf

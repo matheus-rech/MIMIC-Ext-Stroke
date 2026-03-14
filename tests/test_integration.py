@@ -1,4 +1,5 @@
 """End-to-end integration test for the stroke digital twin pipeline."""
+
 import pytest
 import pandas as pd
 import numpy as np
@@ -8,6 +9,7 @@ from pathlib import Path
 @pytest.fixture(scope="module")
 def config():
     import yaml
+
     with open("config/config.yaml") as f:
         return yaml.safe_load(f)
 
@@ -44,6 +46,7 @@ class TestModelIntegration:
 
     def test_bayesian_network_fit_and_sample(self):
         from src.models.bayesian_net import StrokeProfileBN
+
         static = pd.read_parquet("outputs/cohort/static_features.parquet").head(300)
         bn = StrokeProfileBN()
         bn.fit(static)
@@ -53,12 +56,18 @@ class TestModelIntegration:
 
     def test_dgan_fit_and_generate(self):
         from src.models.dgan_model import StrokeTimeSeriesDGAN
+
         n, t, f = 30, 24, 5
         metadata = np.random.randn(n, 3).astype(np.float32)
         sequences = np.random.randn(n, t, f).astype(np.float32)
         model = StrokeTimeSeriesDGAN(
-            n_features=f, n_metadata=3, seq_len=t,
-            noise_dim=8, hidden_dim=16, epochs=3, batch_size=4
+            n_features=f,
+            n_metadata=3,
+            seq_len=t,
+            noise_dim=8,
+            hidden_dim=16,
+            epochs=3,
+            batch_size=4,
         )
         model.train(metadata, sequences)
         generated = model.generate(np.random.randn(5, 3).astype(np.float32))
@@ -66,9 +75,17 @@ class TestModelIntegration:
 
     def test_ctgan_fit_and_sample(self):
         from src.models.ctgan_baseline import StrokeCTGAN
+
         static = pd.read_parquet("outputs/cohort/static_features.parquet").head(200)
-        feature_cols = ["anchor_age", "gender", "stroke_subtype", "hospital_expire_flag",
-                       "has_hypertension", "has_diabetes", "has_afib"]
+        feature_cols = [
+            "anchor_age",
+            "gender",
+            "stroke_subtype",
+            "hospital_expire_flag",
+            "has_hypertension",
+            "has_diabetes",
+            "has_afib",
+        ]
         cols = [c for c in feature_cols if c in static.columns]
         model = StrokeCTGAN(epochs=3)
         model.fit(static[cols])
@@ -77,6 +94,7 @@ class TestModelIntegration:
 
     def test_hybrid_pipeline(self):
         from src.models.hybrid import HybridDigitalTwin
+
         static = pd.read_parquet("outputs/cohort/static_features.parquet").head(100)
         ts = pd.read_parquet("outputs/cohort/timeseries_processed.parquet")
 
@@ -92,6 +110,7 @@ class TestEvaluationIntegration:
 
     def test_fidelity_metrics(self):
         from src.evaluation.fidelity import dimension_wise_distribution, correlation_preservation
+
         static = pd.read_parquet("outputs/cohort/static_features.parquet")
         numeric_cols = static.select_dtypes(include=[np.number]).columns[:5]
         subset = static[numeric_cols].head(200)
@@ -105,6 +124,7 @@ class TestEvaluationIntegration:
 
     def test_clinical_rules(self):
         from src.evaluation.clinical_rules import check_clinical_rules
+
         static = pd.read_parquet("outputs/cohort/static_features.parquet")
         result = check_clinical_rules(static)
         # Real data should have very few violations
@@ -112,15 +132,18 @@ class TestEvaluationIntegration:
 
     def test_utility_metrics(self):
         from src.evaluation.utility import tstr_evaluation
+
         train = pd.read_parquet("outputs/cohort/static_features_train.parquet")
         test = pd.read_parquet("outputs/cohort/static_features_test.parquet")
         # Use train as both "real" and "synthetic" — should get near-perfect scores
-        result = tstr_evaluation(train.head(500), train.head(500), test.head(200),
-                                target="hospital_expire_flag")
+        result = tstr_evaluation(
+            train.head(500), train.head(500), test.head(200), target="hospital_expire_flag"
+        )
         assert result["tstr_auc"] > 0.4
 
     def test_privacy_metrics(self):
         from src.evaluation.privacy import nearest_neighbor_distance
+
         static = pd.read_parquet("outputs/cohort/static_features.parquet")
         sub1 = static.head(100)
         sub2 = static.tail(100)

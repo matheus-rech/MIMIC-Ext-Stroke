@@ -7,6 +7,7 @@
     :class:`~src.simulation.scenario_simulator.ScenarioSimulator` with
     corrected associational terminology.
 """
+
 import warnings
 
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -24,19 +25,16 @@ class CounterfactualSimulator(ScenarioSimulator):
         )
         super().__init__(hybrid_model=hybrid_model)
 
-    def treatment_effect(self, patient_profile: dict,
-                         treatment: dict, outcome_fn=None,
-                         n_samples: int = 50) -> dict:
+    def treatment_effect(
+        self, patient_profile: dict, treatment: dict, outcome_fn=None, n_samples: int = 50
+    ) -> dict:
         """Deprecated — use :meth:`associational_difference` instead."""
         warnings.warn(
-            "treatment_effect() is deprecated. "
-            "Use associational_difference() instead.",
+            "treatment_effect() is deprecated. Use associational_difference() instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        result = self.associational_difference(
-            patient_profile, treatment, outcome_fn, n_samples
-        )
+        result = self.associational_difference(patient_profile, treatment, outcome_fn, n_samples)
         # Map new keys back to legacy keys for backward compatibility
         return {
             "ite": result["associational_difference"],

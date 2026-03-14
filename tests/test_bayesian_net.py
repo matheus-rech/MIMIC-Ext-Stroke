@@ -1,4 +1,5 @@
 """Tests for Bayesian Network static profile generation."""
+
 import pytest
 import pandas as pd
 
@@ -48,9 +49,7 @@ def test_bn_preserves_rare_subtypes(train_data):
         real_sah = (train_data["stroke_subtype"] == "sah").mean()
         synth_sah = (synthetic["stroke_subtype"] == "sah").mean()
         assert synth_sah > 0, "SAH subtype completely lost"
-        assert (
-            abs(synth_sah - real_sah) < 0.10
-        ), f"SAH drift: {real_sah:.3f} vs {synth_sah:.3f}"
+        assert abs(synth_sah - real_sah) < 0.10, f"SAH drift: {real_sah:.3f} vs {synth_sah:.3f}"
 
 
 def test_bn_get_dag(train_data):

@@ -66,9 +66,7 @@ class HybridDigitalTwin:
         self.bn.fit(static_df)
         return self
 
-    def fit(
-        self, static_df: pd.DataFrame, timeseries_df: pd.DataFrame
-    ) -> "HybridDigitalTwin":
+    def fit(self, static_df: pd.DataFrame, timeseries_df: pd.DataFrame) -> "HybridDigitalTwin":
         """Fit both BN and DGAN models.
 
         1. Fit BN on static features
@@ -112,9 +110,7 @@ class HybridDigitalTwin:
             'timeseries' : np.ndarray of shape (n_patients, seq_len, n_ts_features)
         """
         if self.dgan is None:
-            raise RuntimeError(
-                "DGAN not fitted. Call fit() with both static and timeseries data."
-            )
+            raise RuntimeError("DGAN not fitted. Call fit() with both static and timeseries data.")
 
         # Generate static profiles
         static = self.bn.sample(n=n_patients, seed=seed)
@@ -216,9 +212,7 @@ class HybridDigitalTwin:
             "mean": np.nanmean(meta_values, axis=0),
             "std": np.nanstd(meta_values, axis=0) + 1e-8,
         }
-        meta_norm = (meta_values - self._metadata_stats["mean"]) / self._metadata_stats[
-            "std"
-        ]
+        meta_norm = (meta_values - self._metadata_stats["mean"]) / self._metadata_stats["std"]
         meta_norm = np.nan_to_num(meta_norm, nan=0.0)
 
         # Reshape time-series to 3D: (n_patients, seq_len, n_features)
@@ -258,12 +252,8 @@ class HybridDigitalTwin:
         Uses the same normalization stats computed during fit.
         """
         if self._metadata_cols is None or self._metadata_stats is None:
-            raise RuntimeError(
-                "Metadata columns/stats not initialized. Call fit() first."
-            )
+            raise RuntimeError("Metadata columns/stats not initialized. Call fit() first.")
 
         meta_values = static_df[self._metadata_cols].values.astype(np.float32)
-        meta_norm = (meta_values - self._metadata_stats["mean"]) / self._metadata_stats[
-            "std"
-        ]
+        meta_norm = (meta_values - self._metadata_stats["mean"]) / self._metadata_stats["std"]
         return np.nan_to_num(meta_norm, nan=0.0)

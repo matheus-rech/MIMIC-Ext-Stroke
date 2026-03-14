@@ -1,4 +1,5 @@
 """Privacy evaluation metrics for synthetic data."""
+
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import NearestNeighbors
@@ -6,14 +7,15 @@ from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
 
 
-def membership_inference_attack(real: pd.DataFrame, synth: pd.DataFrame,
-                                k: int = 5) -> dict:
+def membership_inference_attack(real: pd.DataFrame, synth: pd.DataFrame, k: int = 5) -> dict:
     """Distance-based membership inference attack.
 
     For each synthetic record, find k nearest neighbors in real data.
     If distances are very small, the synthetic record may have memorized a real patient.
     """
-    numeric_cols = [c for c in real.select_dtypes(include=[np.number]).columns if c in synth.columns]
+    numeric_cols = [
+        c for c in real.select_dtypes(include=[np.number]).columns if c in synth.columns
+    ]
 
     X_real = real[numeric_cols].fillna(0).values
     X_synth = synth[numeric_cols].fillna(0).values
@@ -30,8 +32,10 @@ def membership_inference_attack(real: pd.DataFrame, synth: pd.DataFrame,
     median_dist = np.median(distances[:, 0])
 
     # Mix real and synthetic, try to classify
-    X_mixed = np.vstack([X_real_s[:len(X_synth_s)], X_synth_s])
-    y_mixed = np.concatenate([np.ones(min(len(X_real_s), len(X_synth_s))), np.zeros(len(X_synth_s))])
+    X_mixed = np.vstack([X_real_s[: len(X_synth_s)], X_synth_s])
+    y_mixed = np.concatenate(
+        [np.ones(min(len(X_real_s), len(X_synth_s))), np.zeros(len(X_synth_s))]
+    )
 
     nn2 = NearestNeighbors(n_neighbors=1)
     nn2.fit(X_real_s)
@@ -41,13 +45,18 @@ def membership_inference_attack(real: pd.DataFrame, synth: pd.DataFrame,
 
     mia_f1 = f1_score(y_mixed, preds, zero_division=0)
 
-    return {"mia_f1": mia_f1, "median_nn_distance": float(median_dist),
-            "mean_nn_distance": float(distances[:, 0].mean())}
+    return {
+        "mia_f1": mia_f1,
+        "median_nn_distance": float(median_dist),
+        "mean_nn_distance": float(distances[:, 0].mean()),
+    }
 
 
 def nearest_neighbor_distance(real: pd.DataFrame, synth: pd.DataFrame) -> dict:
     """Distance to Closest Record (DCR) for privacy assessment."""
-    numeric_cols = [c for c in real.select_dtypes(include=[np.number]).columns if c in synth.columns]
+    numeric_cols = [
+        c for c in real.select_dtypes(include=[np.number]).columns if c in synth.columns
+    ]
 
     X_real = real[numeric_cols].fillna(0).values
     X_synth = synth[numeric_cols].fillna(0).values
@@ -68,8 +77,9 @@ def nearest_neighbor_distance(real: pd.DataFrame, synth: pd.DataFrame) -> dict:
     }
 
 
-def attribute_inference_attack(real: pd.DataFrame, synth: pd.DataFrame,
-                               sensitive_col: str, quasi_ids: list) -> dict:
+def attribute_inference_attack(
+    real: pd.DataFrame, synth: pd.DataFrame, sensitive_col: str, quasi_ids: list
+) -> dict:
     """Attempt to infer sensitive attribute from quasi-identifiers."""
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import accuracy_score

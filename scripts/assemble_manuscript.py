@@ -21,24 +21,63 @@ TABLES_DIR = BASE / "outputs" / "tables"
 
 # ── Constants ──────────────────────────────────────────────────────────────
 MAIN_FIGURES = [
-    ("demographics.png", "Figure 1. Demographic characteristics of the stroke cohort (N = 8,500). Distribution of age, gender, race/ethnicity, insurance type, and admission type."),
-    ("stroke_subtypes.png", "Figure 2. Distribution of stroke subtypes. Ischemic stroke was the most prevalent subtype (51.7%), followed by Other cerebrovascular (23.4%), intracerebral hemorrhage (16.4%), subarachnoid hemorrhage (5.1%), and transient ischemic attack (3.3%)."),
-    ("comorbidities.png", "Figure 3. Prevalence of comorbidities in the stroke cohort. Dyslipidemia (52.8%) and hypertension (51.7%) were the most common comorbidities."),
-    ("mortality_by_subtype.png", "Figure 4. In-hospital mortality rates by stroke subtype. ICH had the highest mortality (22.0%), followed by SAH (20.9%), ischemic stroke (17.0%), TIA (6.0%), and Other (4.9%)."),
-    ("labs_by_mortality.png", "Figure 5. Admission laboratory values stratified by in-hospital mortality. Non-survivors had significantly higher glucose, creatinine, and INR, and lower hemoglobin."),
-    ("gcs_trajectory_by_subtype.png", "Figure 6. Glasgow Coma Scale trajectories over 72 ICU hours by stroke subtype. TIA patients maintained the highest GCS, while ICH and SAH patients showed lower initial scores."),
-    ("vital_trends_by_mortality.png", "Figure 7. Vital sign trajectories over 72 ICU hours stratified by mortality outcome. Non-survivors exhibited persistently elevated heart rates and more labile blood pressure."),
+    (
+        "demographics.png",
+        "Figure 1. Demographic characteristics of the stroke cohort (N = 8,500). Distribution of age, gender, race/ethnicity, insurance type, and admission type.",
+    ),
+    (
+        "stroke_subtypes.png",
+        "Figure 2. Distribution of stroke subtypes. Ischemic stroke was the most prevalent subtype (51.7%), followed by Other cerebrovascular (23.4%), intracerebral hemorrhage (16.4%), subarachnoid hemorrhage (5.1%), and transient ischemic attack (3.3%).",
+    ),
+    (
+        "comorbidities.png",
+        "Figure 3. Prevalence of comorbidities in the stroke cohort. Dyslipidemia (52.8%) and hypertension (51.7%) were the most common comorbidities.",
+    ),
+    (
+        "mortality_by_subtype.png",
+        "Figure 4. In-hospital mortality rates by stroke subtype. ICH had the highest mortality (22.0%), followed by SAH (20.9%), ischemic stroke (17.0%), TIA (6.0%), and Other (4.9%).",
+    ),
+    (
+        "labs_by_mortality.png",
+        "Figure 5. Admission laboratory values stratified by in-hospital mortality. Non-survivors had significantly higher glucose, creatinine, and INR, and lower hemoglobin.",
+    ),
+    (
+        "gcs_trajectory_by_subtype.png",
+        "Figure 6. Glasgow Coma Scale trajectories over 72 ICU hours by stroke subtype. TIA patients maintained the highest GCS, while ICH and SAH patients showed lower initial scores.",
+    ),
+    (
+        "vital_trends_by_mortality.png",
+        "Figure 7. Vital sign trajectories over 72 ICU hours stratified by mortality outcome. Non-survivors exhibited persistently elevated heart rates and more labile blood pressure.",
+    ),
 ]
 
 SUPPLEMENTARY_FIGURES = [
-    ("correlation_heatmap.png", "Figure S1. Pearson correlation matrix of static features in the stroke cohort (N = 8,500)."),
-    ("comorbidity_cooccurrence.png", "Figure S2. Heatmap of pairwise comorbidity co-occurrence rates."),
-    ("age_comorbidity_stacked.png", "Figure S3. Age-stratified comorbidity prevalence across four age groups."),
-    ("admission_labs.png", "Figure S4. Distribution of six admission laboratory values with reference ranges."),
+    (
+        "correlation_heatmap.png",
+        "Figure S1. Pearson correlation matrix of static features in the stroke cohort (N = 8,500).",
+    ),
+    (
+        "comorbidity_cooccurrence.png",
+        "Figure S2. Heatmap of pairwise comorbidity co-occurrence rates.",
+    ),
+    (
+        "age_comorbidity_stacked.png",
+        "Figure S3. Age-stratified comorbidity prevalence across four age groups.",
+    ),
+    (
+        "admission_labs.png",
+        "Figure S4. Distribution of six admission laboratory values with reference ranges.",
+    ),
     ("los_distribution.png", "Figure S5. ICU length of stay distribution by stroke subtype."),
     ("ts_missing_rates.png", "Figure S6. Hourly time-series missing data rates over 72 hours."),
-    ("sample_trajectories.png", "Figure S7. Example 72-hour ICU trajectories for three representative patients."),
-    ("mortality_by_age.png", "Figure S8. In-hospital mortality rate by age decile with 95% confidence intervals."),
+    (
+        "sample_trajectories.png",
+        "Figure S7. Example 72-hour ICU trajectories for three representative patients.",
+    ),
+    (
+        "mortality_by_age.png",
+        "Figure S8. In-hospital mortality rate by age decile with 95% confidence intervals.",
+    ),
 ]
 
 # Figure filename -> figure number label for insertion after references
@@ -57,14 +96,15 @@ FIGURE_TRIGGERS = [
     ("Figure 1", "demographics.png"),
     ("Figure 2", "stroke_subtypes.png"),
     ("Figure 3", "comorbidities.png"),
-    ("Figure 5", "mortality_by_subtype.png"),   # "Figure 5" in results = mortality by subtype
-    ("Figure 6", "labs_by_mortality.png"),       # labs by mortality
+    ("Figure 5", "mortality_by_subtype.png"),  # "Figure 5" in results = mortality by subtype
+    ("Figure 6", "labs_by_mortality.png"),  # labs by mortality
     ("Figure 9", "gcs_trajectory_by_subtype.png"),
     ("Figure 10", "vital_trends_by_mortality.png"),
 ]
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
 
 def set_font(run, name="Times New Roman", size=11, bold=False, italic=False, color=None):
     """Configure run font properties."""
@@ -243,7 +283,7 @@ def add_rich_paragraph(doc, text):
     set_paragraph_spacing(p)
 
     # Split on **bold** and process
-    parts = re.split(r'(\*\*.*?\*\*)', text)
+    parts = re.split(r"(\*\*.*?\*\*)", text)
     for part in parts:
         if part.startswith("**") and part.endswith("**"):
             run = p.add_run(part[2:-2])
@@ -282,6 +322,7 @@ def process_md_to_doc(doc, md_text, skip_title=False):
 
 
 # ── Main Manuscript Assembly ───────────────────────────────────────────────
+
 
 def build_main_manuscript():
     """Build the main manuscript .docx."""
@@ -402,12 +443,12 @@ def build_main_manuscript():
             # Figure 7 (BN DAG -> not available), Figure 8 (correlation -> supplementary),
             # Figure 9 (GCS trajectory), Figure 10 (vital trends)
             text_figure_map = {
-                "(Figure 1)": 0,   # demographics
-                "(Figure 2)": 1,   # stroke subtypes
-                "(Figure 3)": 2,   # comorbidities
-                "(Figure 5)": 3,   # mortality by subtype
-                "(Figure 6)": 4,   # labs by mortality
-                "(Figure 9)": 5,   # GCS trajectory
+                "(Figure 1)": 0,  # demographics
+                "(Figure 2)": 1,  # stroke subtypes
+                "(Figure 3)": 2,  # comorbidities
+                "(Figure 5)": 3,  # mortality by subtype
+                "(Figure 6)": 4,  # labs by mortality
+                "(Figure 9)": 5,  # GCS trajectory
                 "(Figure 10)": 6,  # vital trends
             }
             for ref, fig_idx in text_figure_map.items():
@@ -419,10 +460,16 @@ def build_main_manuscript():
 
     # Insert Table 1 (Overall) after cohort characteristics
     add_heading(doc, "Tables", level=2)
-    add_csv_table(doc, TABLES_DIR / "table1_overall.csv",
-                  "Table 1. Baseline characteristics of the stroke cohort (N = 8,500).")
-    add_csv_table(doc, TABLES_DIR / "table1_by_mortality.csv",
-                  "Table 2. Baseline characteristics stratified by in-hospital mortality.")
+    add_csv_table(
+        doc,
+        TABLES_DIR / "table1_overall.csv",
+        "Table 1. Baseline characteristics of the stroke cohort (N = 8,500).",
+    )
+    add_csv_table(
+        doc,
+        TABLES_DIR / "table1_by_mortality.csv",
+        "Table 2. Baseline characteristics stratified by in-hospital mortality.",
+    )
 
     # Insert any remaining main figures that weren't triggered
     for idx, (fig_file, caption) in enumerate(MAIN_FIGURES):
@@ -455,6 +502,7 @@ def build_main_manuscript():
 
 # ── Supplementary Materials Assembly ───────────────────────────────────────
 
+
 def build_supplementary():
     """Build the supplementary materials .docx."""
     doc = Document()
@@ -480,7 +528,9 @@ def build_supplementary():
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("Stroke Digital Twins via Hybrid Bayesian-GAN Generative Models:\nSynthetic Patient Profiles and ICU Time-Series from MIMIC-IV")
+    run = p.add_run(
+        "Stroke Digital Twins via Hybrid Bayesian-GAN Generative Models:\nSynthetic Patient Profiles and ICU Time-Series from MIMIC-IV"
+    )
     set_font(run, size=12, italic=True)
     set_paragraph_spacing(p, line_spacing=1.0, space_after=Pt(18))
 
@@ -506,7 +556,7 @@ def build_supplementary():
         # Remove separator rows (all dashes/colons)
         data_rows = []
         for row in parsed:
-            if all(re.match(r'^[-:]+$', c) or c == '' for c in row):
+            if all(re.match(r"^[-:]+$", c) or c == "" for c in row):
                 continue
             data_rows.append(row)
 

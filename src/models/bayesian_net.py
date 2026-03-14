@@ -112,9 +112,7 @@ class StrokeProfileBN:
         if self.model is None:
             raise RuntimeError("Model not fitted. Call fit() first.")
 
-        synthetic = self.model.simulate(
-            n_samples=n, seed=seed, show_progress=False
-        )
+        synthetic = self.model.simulate(n_samples=n, seed=seed, show_progress=False)
 
         return self._inverse_discretize(synthetic)
 
@@ -182,9 +180,9 @@ class StrokeProfileBN:
 
         if evidence:
             import itertools
+
             parent_states = [
-                cpd.state_names.get(e, list(range(c)))
-                for e, c in zip(evidence, evidence_card)
+                cpd.state_names.get(e, list(range(c))) for e, c in zip(evidence, evidence_card)
             ]
             combos = list(itertools.product(*parent_states))
             target_states = cpd.state_names.get(target, list(range(values.shape[0])))
@@ -193,15 +191,13 @@ class StrokeProfileBN:
             for idx, combo in enumerate(combos):
                 key = "|".join(f"{e}={s}" for e, s in zip(evidence, combo))
                 prob_table[key] = {
-                    str(ts): float(values[ti, idx])
-                    for ti, ts in enumerate(target_states)
+                    str(ts): float(values[ti, idx]) for ti, ts in enumerate(target_states)
                 }
             summary["conditional_probabilities"] = prob_table
         else:
             target_states = cpd.state_names.get(target, list(range(values.shape[0])))
             summary["marginal_probabilities"] = {
-                str(ts): float(values[ti, 0])
-                for ti, ts in enumerate(target_states)
+                str(ts): float(values[ti, 0]) for ti, ts in enumerate(target_states)
             }
 
         relevant_edges = [(p, target) for p in parents]
@@ -254,12 +250,10 @@ class StrokeProfileBN:
                 _, edges = pd.cut(filled, bins=4, retbins=True, duplicates="drop")
 
             self._lab_bin_edges[col] = edges
-            labels = [f"Q{i+1}" for i in range(len(edges) - 1)]
+            labels = [f"Q{i + 1}" for i in range(len(edges) - 1)]
             self._lab_labels[col] = labels
 
-            result[col] = pd.cut(
-                filled, bins=edges, labels=labels, include_lowest=True
-            ).astype(str)
+            result[col] = pd.cut(filled, bins=edges, labels=labels, include_lowest=True).astype(str)
 
         # --- hospital_expire_flag: already 0/1 int, convert to str ---
         if "hospital_expire_flag" in result.columns:
@@ -328,13 +322,9 @@ class StrokeProfileBN:
                 continue
             edges = self._lab_bin_edges[col]
             labels = self._lab_labels[col]
-            bin_ranges = {
-                labels[i]: (edges[i], edges[i + 1]) for i in range(len(labels))
-            }
+            bin_ranges = {labels[i]: (edges[i], edges[i + 1]) for i in range(len(labels))}
             result[col] = result[col].map(
-                lambda x, br=bin_ranges: self._midpoint_noise(
-                    br.get(x, (edges[0], edges[-1])), rng
-                )
+                lambda x, br=bin_ranges: self._midpoint_noise(br.get(x, (edges[0], edges[-1])), rng)
             )
 
         # --- Binary flags back to int ---

@@ -1,4 +1,5 @@
 """Feature extraction for stroke digital twin."""
+
 import duckdb
 import pandas as pd
 from pathlib import Path

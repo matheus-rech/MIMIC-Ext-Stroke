@@ -1,5 +1,3 @@
-
-
 def test_extract_stroke_cohort_returns_dataframe():
     from src.data.extract import extract_stroke_cohort
     import yaml

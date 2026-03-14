@@ -12,6 +12,7 @@ explorations, not evidence of causation.  See Section 2.10 of the manuscript
 for a detailed discussion of the assumptions required for causal
 interpretation and why they are unlikely to hold in this setting.
 """
+
 import numpy as np
 import pandas as pd
 
@@ -81,9 +82,7 @@ class ScenarioSimulator:
         """
         results = {}
         for name, modification in scenarios.items():
-            result = self.simulate_scenario(
-                patient_profile, modification, n_samples
-            )
+            result = self.simulate_scenario(patient_profile, modification, n_samples)
             trajs = result["trajectories"]
             results[name] = {
                 "trajectories": trajs,
@@ -122,9 +121,7 @@ class ScenarioSimulator:
                 return trajs[:, -1, :].mean(axis=1)
 
         baseline = self.simulate_scenario(patient_profile, {}, n_samples)
-        modified = self.simulate_scenario(
-            patient_profile, modification, n_samples
-        )
+        modified = self.simulate_scenario(patient_profile, modification, n_samples)
 
         y_baseline = outcome_fn(baseline["trajectories"])
         y_modified = outcome_fn(modified["trajectories"])

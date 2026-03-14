@@ -3,6 +3,7 @@
 Train on Synthetic, Test on Real (TSTR) measures whether synthetic data
 preserves enough signal for downstream ML tasks.
 """
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -11,11 +12,18 @@ from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
 
-def tstr_evaluation(real_train: pd.DataFrame, synth: pd.DataFrame,
-                    real_test: pd.DataFrame, target: str = "hospital_expire_flag") -> dict:
+def tstr_evaluation(
+    real_train: pd.DataFrame,
+    synth: pd.DataFrame,
+    real_test: pd.DataFrame,
+    target: str = "hospital_expire_flag",
+) -> dict:
     """TSTR and TRTR evaluation for mortality prediction."""
-    feature_cols = [c for c in real_train.columns if c != target and
-                    real_train[c].dtype in [np.float64, np.int64, np.float32, np.int32]]
+    feature_cols = [
+        c
+        for c in real_train.columns
+        if c != target and real_train[c].dtype in [np.float64, np.int64, np.float32, np.int32]
+    ]
 
     X_real_train = real_train[feature_cols].fillna(0).values
     y_real_train = real_train[target].values
@@ -35,14 +43,30 @@ def tstr_evaluation(real_train: pd.DataFrame, synth: pd.DataFrame,
     results = {}
     for name, clf_cls in [("lr", LogisticRegression), ("rf", RandomForestClassifier)]:
         # TRTR: Train Real, Test Real
-        clf_real = clf_cls(max_iter=1000, random_state=42) if name == "lr" else clf_cls(n_estimators=100, random_state=42)
+        clf_real = (
+            clf_cls(max_iter=1000, random_state=42)
+            if name == "lr"
+            else clf_cls(n_estimators=100, random_state=42)
+        )
         clf_real.fit(X_real_train_s, y_real_train)
-        y_pred_real = clf_real.predict_proba(X_test_s)[:, 1] if hasattr(clf_real, "predict_proba") else clf_real.predict(X_test_s)
+        y_pred_real = (
+            clf_real.predict_proba(X_test_s)[:, 1]
+            if hasattr(clf_real, "predict_proba")
+            else clf_real.predict(X_test_s)
+        )
 
         # TSTR: Train Synthetic, Test Real
-        clf_synth = clf_cls(max_iter=1000, random_state=42) if name == "lr" else clf_cls(n_estimators=100, random_state=42)
+        clf_synth = (
+            clf_cls(max_iter=1000, random_state=42)
+            if name == "lr"
+            else clf_cls(n_estimators=100, random_state=42)
+        )
         clf_synth.fit(X_synth_s, y_synth)
-        y_pred_synth = clf_synth.predict_proba(X_test_synth_s)[:, 1] if hasattr(clf_synth, "predict_proba") else clf_synth.predict(X_test_synth_s)
+        y_pred_synth = (
+            clf_synth.predict_proba(X_test_synth_s)[:, 1]
+            if hasattr(clf_synth, "predict_proba")
+            else clf_synth.predict(X_test_synth_s)
+        )
 
         try:
             trtr_auc = roc_auc_score(y_test, y_pred_real)

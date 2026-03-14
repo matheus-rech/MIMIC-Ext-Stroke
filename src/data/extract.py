@@ -1,4 +1,5 @@
 """Extract stroke cohort from MIMIC-IV using DuckDB."""
+
 import duckdb
 import pandas as pd
 from pathlib import Path

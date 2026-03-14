@@ -28,9 +28,7 @@ def test_hybrid_generates_complete_patients():
     static = pd.read_parquet("outputs/cohort/static_features.parquet").head(200)
     ts = pd.read_parquet("outputs/cohort/timeseries_processed.parquet")
 
-    pipeline = HybridDigitalTwin(
-        dgan_epochs=3, dgan_hidden_dim=32, dgan_noise_dim=8
-    )
+    pipeline = HybridDigitalTwin(dgan_epochs=3, dgan_hidden_dim=32, dgan_noise_dim=8)
     pipeline.fit(static, ts)
 
     result = pipeline.generate(n_patients=20, seed=42)
@@ -46,14 +44,10 @@ def test_hybrid_generate_multiple_datasets():
     static = pd.read_parquet("outputs/cohort/static_features.parquet").head(200)
     ts = pd.read_parquet("outputs/cohort/timeseries_processed.parquet")
 
-    pipeline = HybridDigitalTwin(
-        dgan_epochs=2, dgan_hidden_dim=32, dgan_noise_dim=8
-    )
+    pipeline = HybridDigitalTwin(dgan_epochs=2, dgan_hidden_dim=32, dgan_noise_dim=8)
     pipeline.fit(static, ts)
 
-    datasets = pipeline.generate_multiple_datasets(
-        n_patients=10, n_datasets=3, base_seed=0
-    )
+    datasets = pipeline.generate_multiple_datasets(n_patients=10, n_datasets=3, base_seed=0)
     assert len(datasets) == 3
     for ds in datasets:
         assert len(ds["static"]) == 10

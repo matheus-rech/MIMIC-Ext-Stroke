@@ -1,4 +1,5 @@
 """Tests for CTGAN and TVAE baseline synthesizers."""
+
 import pytest
 import pandas as pd
 

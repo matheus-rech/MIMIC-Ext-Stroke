@@ -1,5 +1,3 @@
-
-
 def test_timeseries_returns_dataframe():
     from src.data.features import extract_timeseries
     import yaml

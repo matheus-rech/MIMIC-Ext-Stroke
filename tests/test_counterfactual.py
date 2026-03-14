@@ -4,6 +4,7 @@ import pandas as pd
 
 def test_counterfactual_simulator_creates():
     from src.simulation.counterfactual import CounterfactualSimulator
+
     sim = CounterfactualSimulator()
     assert sim is not None
 

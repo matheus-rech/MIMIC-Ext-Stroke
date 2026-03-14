@@ -5,11 +5,13 @@ for the MIMIC-IV stroke cohort digital twin project.
 """
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -45,8 +47,12 @@ LAB_MAP = {
 }
 
 COMORBIDITIES = [
-    "has_hypertension", "has_diabetes", "has_afib",
-    "has_dyslipidemia", "has_ckd", "has_cad",
+    "has_hypertension",
+    "has_diabetes",
+    "has_afib",
+    "has_dyslipidemia",
+    "has_ckd",
+    "has_cad",
 ]
 COMORB_LABELS = {
     "has_hypertension": "Hypertension",
@@ -93,6 +99,7 @@ def load_data():
 # FIGURES
 # ===================================================================
 
+
 def fig_demographics(sf):
     """1. demographics.png — 3-panel."""
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
@@ -112,8 +119,13 @@ def fig_demographics(sf):
     gc = sf["gender"].value_counts()
     bars = ax.bar(gc.index, gc.values, color=[PAL[1], PAL[2]], edgecolor="white")
     for b in bars:
-        ax.text(b.get_x() + b.get_width()/2, b.get_height() + 30,
-                f"{int(b.get_height())}", ha="center", fontsize=11)
+        ax.text(
+            b.get_x() + b.get_width() / 2,
+            b.get_height() + 30,
+            f"{int(b.get_height())}",
+            ha="center",
+            fontsize=11,
+        )
     ax.set_ylabel("Count")
     ax.set_title("Gender Distribution")
 
@@ -122,8 +134,13 @@ def fig_demographics(sf):
     rc = sf["race"].value_counts().head(8)
     bars = ax.barh(rc.index[::-1], rc.values[::-1], color=PAL[3], edgecolor="white")
     for b in bars:
-        ax.text(b.get_width() + 20, b.get_y() + b.get_height()/2,
-                f"{int(b.get_width())}", va="center", fontsize=10)
+        ax.text(
+            b.get_width() + 20,
+            b.get_y() + b.get_height() / 2,
+            f"{int(b.get_width())}",
+            va="center",
+            fontsize=10,
+        )
     ax.set_xlabel("Count")
     ax.set_title("Race / Ethnicity")
 
@@ -141,8 +158,13 @@ def fig_stroke_subtypes(sf):
     bars = ax.bar([SUBTYPE_NICE[s] for s in vc.index], vc.values, color=PAL[:5], edgecolor="white")
     for b, v in zip(bars, vc.values):
         pct = v / total * 100
-        ax.text(b.get_x() + b.get_width()/2, b.get_height() + 30,
-                f"{v}\n({pct:.1f}%)", ha="center", fontsize=11)
+        ax.text(
+            b.get_x() + b.get_width() / 2,
+            b.get_height() + 30,
+            f"{v}\n({pct:.1f}%)",
+            ha="center",
+            fontsize=11,
+        )
     ax.set_ylabel("Count")
     ax.set_title("Stroke Subtype Distribution")
     fig.tight_layout()
@@ -159,8 +181,13 @@ def fig_comorbidities(sf):
     labels = [COMORB_LABELS[c] for c in prev.index]
     bars = ax.barh(labels, prev.values, color=PAL[4], edgecolor="white")
     for b, v in zip(bars, prev.values):
-        ax.text(b.get_width() + 0.5, b.get_y() + b.get_height()/2,
-                f"{v:.1f}%", va="center", fontsize=11)
+        ax.text(
+            b.get_width() + 0.5,
+            b.get_y() + b.get_height() / 2,
+            f"{v:.1f}%",
+            va="center",
+            fontsize=11,
+        )
     ax.set_xlabel("Prevalence (%)")
     ax.set_title("Comorbidity Prevalence")
     ax.set_xlim(0, prev.max() * 1.15)
@@ -174,10 +201,17 @@ def fig_mortality_by_subtype(sf):
     """4. mortality_by_subtype.png."""
     fig, ax = plt.subplots(figsize=(8, 5))
     mort = sf.groupby("stroke_subtype")["hospital_expire_flag"].mean().reindex(SUBTYPE_ORDER) * 100
-    bars = ax.bar([SUBTYPE_NICE[s] for s in mort.index], mort.values, color=PAL[:5], edgecolor="white")
+    bars = ax.bar(
+        [SUBTYPE_NICE[s] for s in mort.index], mort.values, color=PAL[:5], edgecolor="white"
+    )
     for b, v in zip(bars, mort.values):
-        ax.text(b.get_x() + b.get_width()/2, b.get_height() + 0.3,
-                f"{v:.1f}%", ha="center", fontsize=11)
+        ax.text(
+            b.get_x() + b.get_width() / 2,
+            b.get_height() + 0.3,
+            f"{v:.1f}%",
+            ha="center",
+            fontsize=11,
+        )
     ax.set_ylabel("Mortality Rate (%)")
     ax.set_title("In-Hospital Mortality by Stroke Subtype")
     fig.tight_layout()
@@ -241,11 +275,27 @@ def fig_los_distribution(sf):
     tmp["Subtype"] = tmp["stroke_subtype"].map(SUBTYPE_NICE)
     # cap for visualisation
     tmp["los_cap"] = tmp["los"].clip(upper=tmp["los"].quantile(0.99))
-    sns.violinplot(data=tmp, x="Subtype", y="los_cap", order=order,
-                   inner=None, palette=PAL[:5], alpha=0.4, ax=ax)
-    sns.boxplot(data=tmp, x="Subtype", y="los_cap", order=order,
-                width=0.15, palette=PAL[:5], boxprops=dict(alpha=0.8),
-                fliersize=2, ax=ax)
+    sns.violinplot(
+        data=tmp,
+        x="Subtype",
+        y="los_cap",
+        order=order,
+        inner=None,
+        palette=PAL[:5],
+        alpha=0.4,
+        ax=ax,
+    )
+    sns.boxplot(
+        data=tmp,
+        x="Subtype",
+        y="los_cap",
+        order=order,
+        width=0.15,
+        palette=PAL[:5],
+        boxprops=dict(alpha=0.8),
+        fliersize=2,
+        ax=ax,
+    )
     ax.set_ylabel("ICU Length of Stay (days)")
     ax.set_xlabel("Stroke Subtype")
     ax.set_title("ICU LOS Distribution by Stroke Subtype")
@@ -260,15 +310,26 @@ def fig_sample_trajectories(ts):
     stay_ids = ts["stay_id"].unique()
     np.random.seed(42)
     chosen = np.random.choice(stay_ids, size=3, replace=False)
-    vitals = [("hr", "Heart Rate (bpm)"), ("spo2", "SpO2 (%)"),
-              ("sbp", "Systolic BP (mmHg)"), ("gcs_total", "GCS Total")]
+    vitals = [
+        ("hr", "Heart Rate (bpm)"),
+        ("spo2", "SpO2 (%)"),
+        ("sbp", "Systolic BP (mmHg)"),
+        ("gcs_total", "GCS Total"),
+    ]
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     colors = PAL10[:3]
     for ax, (col, title) in zip(axes.flat, vitals):
         for i, sid in enumerate(chosen):
             sub = ts[ts["stay_id"] == sid].sort_values("hour")
-            ax.plot(sub["hour"], sub[col], marker=".", markersize=3,
-                    label=f"Patient {i+1}", color=colors[i], alpha=0.8)
+            ax.plot(
+                sub["hour"],
+                sub[col],
+                marker=".",
+                markersize=3,
+                label=f"Patient {i + 1}",
+                color=colors[i],
+                alpha=0.8,
+            )
         ax.set_xlabel("Hour")
         ax.set_ylabel(title)
         ax.set_title(title)
@@ -282,14 +343,30 @@ def fig_sample_trajectories(ts):
 
 def fig_ts_missing(ts):
     """9. ts_missing_rates.png — horizontal bar of missing rates."""
-    vital_cols = ["hr", "sbp", "dbp", "map", "rr", "spo2", "temp_c",
-                  "gcs_eye", "gcs_verbal", "gcs_motor", "gcs_total"]
+    vital_cols = [
+        "hr",
+        "sbp",
+        "dbp",
+        "map",
+        "rr",
+        "spo2",
+        "temp_c",
+        "gcs_eye",
+        "gcs_verbal",
+        "gcs_motor",
+        "gcs_total",
+    ]
     miss = ts[vital_cols].isnull().mean().sort_values() * 100
     fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.barh(miss.index, miss.values, color=PAL[5], edgecolor="white")
     for b, v in zip(bars, miss.values):
-        ax.text(b.get_width() + 0.5, b.get_y() + b.get_height()/2,
-                f"{v:.1f}%", va="center", fontsize=10)
+        ax.text(
+            b.get_width() + 0.5,
+            b.get_y() + b.get_height() / 2,
+            f"{v:.1f}%",
+            va="center",
+            fontsize=10,
+        )
     ax.set_xlabel("Missing Rate (%)")
     ax.set_title("Time-Series Missing Data Rates")
     ax.set_xlim(0, miss.max() * 1.15)
@@ -301,17 +378,38 @@ def fig_ts_missing(ts):
 
 def fig_correlation_heatmap(sf):
     """10. correlation_heatmap.png."""
-    num_cols = ["anchor_age", "los", "hospital_expire_flag",
-                "has_hypertension", "has_diabetes", "has_afib",
-                "has_dyslipidemia", "has_ckd", "has_cad",
-                "lab_glucose", "lab_sodium", "lab_creatinine",
-                "lab_hemoglobin", "lab_platelets", "lab_inr"]
+    num_cols = [
+        "anchor_age",
+        "los",
+        "hospital_expire_flag",
+        "has_hypertension",
+        "has_diabetes",
+        "has_afib",
+        "has_dyslipidemia",
+        "has_ckd",
+        "has_cad",
+        "lab_glucose",
+        "lab_sodium",
+        "lab_creatinine",
+        "lab_hemoglobin",
+        "lab_platelets",
+        "lab_inr",
+    ]
     corr = sf[num_cols].corr()
     mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
     fig, ax = plt.subplots(figsize=(12, 10))
-    sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="RdBu_r",
-                center=0, square=True, linewidths=0.5, ax=ax,
-                annot_kws={"size": 8})
+    sns.heatmap(
+        corr,
+        mask=mask,
+        annot=True,
+        fmt=".2f",
+        cmap="RdBu_r",
+        center=0,
+        square=True,
+        linewidths=0.5,
+        ax=ax,
+        annot_kws={"size": 8},
+    )
     ax.set_title("Correlation Matrix — Static Features")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "correlation_heatmap.png", dpi=DPI, bbox_inches="tight")
@@ -324,15 +422,15 @@ def fig_comorbidity_cooccurrence(sf):
     cmat = sf[COMORBIDITIES].copy()
     n = len(cmat)
     labels = [COMORB_LABELS[c] for c in COMORBIDITIES]
-    cooc = pd.DataFrame(np.zeros((len(COMORBIDITIES), len(COMORBIDITIES))),
-                        index=labels, columns=labels)
+    cooc = pd.DataFrame(
+        np.zeros((len(COMORBIDITIES), len(COMORBIDITIES))), index=labels, columns=labels
+    )
     for i, c1 in enumerate(COMORBIDITIES):
         for j, c2 in enumerate(COMORBIDITIES):
             cooc.iloc[i, j] = (cmat[c1] & cmat[c2]).sum() / n * 100
 
     fig, ax = plt.subplots(figsize=(8, 7))
-    sns.heatmap(cooc, annot=True, fmt=".1f", cmap="YlOrRd",
-                square=True, linewidths=0.5, ax=ax)
+    sns.heatmap(cooc, annot=True, fmt=".1f", cmap="YlOrRd", square=True, linewidths=0.5, ax=ax)
     ax.set_title("Comorbidity Co-occurrence (%)")
     fig.tight_layout()
     fig.savefig(FIG_DIR / "comorbidity_cooccurrence.png", dpi=DPI, bbox_inches="tight")
@@ -369,8 +467,7 @@ def fig_labs_by_mortality(sf):
     tmp = sf.copy()
     tmp["Outcome"] = tmp["hospital_expire_flag"].map({0: "Survived", 1: "Died"})
     for ax, col in zip(axes.flat, lab_cols):
-        sns.boxplot(data=tmp, x="Outcome", y=col, palette=[PAL[0], PAL[3]],
-                    ax=ax, fliersize=2)
+        sns.boxplot(data=tmp, x="Outcome", y=col, palette=[PAL[0], PAL[3]], ax=ax, fliersize=2)
         ax.set_title(LAB_NICE[col])
         ax.set_xlabel("")
     fig.suptitle("Admission Labs by Mortality Outcome", fontsize=14, y=1.01)
@@ -390,8 +487,13 @@ def fig_gcs_trajectory_by_subtype(sf, ts):
         agg = sub.groupby("hour")["gcs_total"].agg(["mean", "sem"]).reset_index()
         agg["ci"] = 1.96 * agg["sem"]
         ax.plot(agg["hour"], agg["mean"], label=SUBTYPE_NICE[st], color=PAL10[i])
-        ax.fill_between(agg["hour"], agg["mean"] - agg["ci"], agg["mean"] + agg["ci"],
-                        alpha=0.15, color=PAL10[i])
+        ax.fill_between(
+            agg["hour"],
+            agg["mean"] - agg["ci"],
+            agg["mean"] + agg["ci"],
+            alpha=0.15,
+            color=PAL10[i],
+        )
     ax.set_xlabel("Hour")
     ax.set_ylabel("GCS Total")
     ax.set_title("Mean GCS Trajectory by Stroke Subtype (95% CI)")
@@ -416,8 +518,9 @@ def fig_vital_trends_by_mortality(sf, ts):
             agg["ci"] = 1.96 * agg["sem"]
             c = PAL[0] if outcome == "Survived" else PAL[3]
             ax.plot(agg["hour"], agg["mean"], label=outcome, color=c)
-            ax.fill_between(agg["hour"], agg["mean"] - agg["ci"],
-                            agg["mean"] + agg["ci"], alpha=0.15, color=c)
+            ax.fill_between(
+                agg["hour"], agg["mean"] - agg["ci"], agg["mean"] + agg["ci"], alpha=0.15, color=c
+            )
         ax.set_xlabel("Hour")
         ax.set_ylabel(title)
         ax.set_title(f"{title} — First 48h by Outcome")
@@ -432,6 +535,7 @@ def fig_vital_trends_by_mortality(sf, ts):
 # TABLES
 # ===================================================================
 
+
 def _median_iqr(s):
     """Return 'median (Q1-Q3)' string."""
     med = s.median()
@@ -443,7 +547,7 @@ def _n_pct(s, total=None):
     """Return 'n (%)' string."""
     n = int(s.sum())
     total = total or len(s)
-    return f"{n} ({n/total*100:.1f}%)"
+    return f"{n} ({n / total * 100:.1f}%)"
 
 
 def _build_table1(df, label="Overall"):
@@ -503,8 +607,9 @@ def table1_by_subtype(sf):
 
     merged = frames[SUBTYPE_NICE[SUBTYPE_ORDER[0]]][["Variable", "Statistic"]].copy()
     for st in SUBTYPE_ORDER:
-        merged = merged.merge(frames[SUBTYPE_NICE[st]][["Variable", SUBTYPE_NICE[st]]],
-                              on="Variable", how="left")
+        merged = merged.merge(
+            frames[SUBTYPE_NICE[st]][["Variable", SUBTYPE_NICE[st]]], on="Variable", how="left"
+        )
 
     # p-values
     pvals = []
@@ -592,8 +697,9 @@ def table_comorbidity_cooccurrence(sf):
     """4. comorbidity_cooccurrence_table.csv."""
     labels = [COMORB_LABELS[c] for c in COMORBIDITIES]
     n = len(sf)
-    cooc = pd.DataFrame(np.zeros((len(COMORBIDITIES), len(COMORBIDITIES))),
-                        index=labels, columns=labels)
+    cooc = pd.DataFrame(
+        np.zeros((len(COMORBIDITIES), len(COMORBIDITIES))), index=labels, columns=labels
+    )
     for i, c1 in enumerate(COMORBIDITIES):
         for j, c2 in enumerate(COMORBIDITIES):
             cooc.iloc[i, j] = round((sf[c1] & sf[c2]).sum() / n * 100, 2)
@@ -603,51 +709,71 @@ def table_comorbidity_cooccurrence(sf):
 
 def table_cohort_summary(sf):
     """5. cohort_summary_stats.csv."""
-    num_cols = ["anchor_age", "los",
-                "lab_glucose", "lab_sodium", "lab_creatinine",
-                "lab_hemoglobin", "lab_platelets", "lab_inr"]
+    num_cols = [
+        "anchor_age",
+        "los",
+        "lab_glucose",
+        "lab_sodium",
+        "lab_creatinine",
+        "lab_hemoglobin",
+        "lab_platelets",
+        "lab_inr",
+    ]
     rows = []
     for c in num_cols:
         s = sf[c].dropna()
-        rows.append({
-            "Variable": c,
-            "N": len(s),
-            "Missing": sf[c].isnull().sum(),
-            "Missing%": round(sf[c].isnull().mean() * 100, 1),
-            "Mean": round(s.mean(), 2),
-            "SD": round(s.std(), 2),
-            "Median": round(s.median(), 2),
-            "Q1": round(s.quantile(0.25), 2),
-            "Q3": round(s.quantile(0.75), 2),
-            "Min": round(s.min(), 2),
-            "Max": round(s.max(), 2),
-        })
-    cat_cols = ["gender", "race", "stroke_subtype", "insurance",
-                "first_careunit", "admission_type"]
+        rows.append(
+            {
+                "Variable": c,
+                "N": len(s),
+                "Missing": sf[c].isnull().sum(),
+                "Missing%": round(sf[c].isnull().mean() * 100, 1),
+                "Mean": round(s.mean(), 2),
+                "SD": round(s.std(), 2),
+                "Median": round(s.median(), 2),
+                "Q1": round(s.quantile(0.25), 2),
+                "Q3": round(s.quantile(0.75), 2),
+                "Min": round(s.min(), 2),
+                "Max": round(s.max(), 2),
+            }
+        )
+    cat_cols = ["gender", "race", "stroke_subtype", "insurance", "first_careunit", "admission_type"]
     for c in cat_cols:
         vc = sf[c].value_counts()
         for val, cnt in vc.items():
-            rows.append({
-                "Variable": f"{c} = {val}",
-                "N": cnt,
-                "Missing": sf[c].isnull().sum(),
-                "Missing%": round(sf[c].isnull().mean() * 100, 1),
-                "Mean": round(cnt / len(sf) * 100, 2),
-                "SD": np.nan, "Median": np.nan, "Q1": np.nan, "Q3": np.nan,
-                "Min": np.nan, "Max": np.nan,
-            })
+            rows.append(
+                {
+                    "Variable": f"{c} = {val}",
+                    "N": cnt,
+                    "Missing": sf[c].isnull().sum(),
+                    "Missing%": round(sf[c].isnull().mean() * 100, 1),
+                    "Mean": round(cnt / len(sf) * 100, 2),
+                    "SD": np.nan,
+                    "Median": np.nan,
+                    "Q1": np.nan,
+                    "Q3": np.nan,
+                    "Min": np.nan,
+                    "Max": np.nan,
+                }
+            )
     # Binary
     for c in COMORBIDITIES + ["hospital_expire_flag"]:
         n_pos = int(sf[c].sum())
-        rows.append({
-            "Variable": c,
-            "N": n_pos,
-            "Missing": 0,
-            "Missing%": 0,
-            "Mean": round(n_pos / len(sf) * 100, 2),
-            "SD": np.nan, "Median": np.nan, "Q1": np.nan, "Q3": np.nan,
-            "Min": np.nan, "Max": np.nan,
-        })
+        rows.append(
+            {
+                "Variable": c,
+                "N": n_pos,
+                "Missing": 0,
+                "Missing%": 0,
+                "Mean": round(n_pos / len(sf) * 100, 2),
+                "SD": np.nan,
+                "Median": np.nan,
+                "Q1": np.nan,
+                "Q3": np.nan,
+                "Min": np.nan,
+                "Max": np.nan,
+            }
+        )
 
     pd.DataFrame(rows).to_csv(TBL_DIR / "cohort_summary_stats.csv", index=False)
     print("  [saved] cohort_summary_stats.csv")
@@ -656,6 +782,7 @@ def table_cohort_summary(sf):
 # ===================================================================
 # MAIN
 # ===================================================================
+
 
 def main():
     sf, ts = load_data()

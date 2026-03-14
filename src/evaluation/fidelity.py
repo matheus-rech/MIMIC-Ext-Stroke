@@ -2,6 +2,7 @@
 
 Implements metrics from the 12-metric framework (Yan et al., Nature Comms 2022).
 """
+
 import numpy as np
 import pandas as pd
 from scipy.stats import ks_2samp
@@ -37,7 +38,7 @@ def correlation_preservation(real: pd.DataFrame, synth: pd.DataFrame) -> dict:
     synth_corr = synth[common_cols].corr().fillna(0)
 
     diff = real_corr - synth_corr
-    frobenius = np.sqrt((diff.values ** 2).sum())
+    frobenius = np.sqrt((diff.values**2).sum())
 
     return {
         "frobenius_distance": frobenius,
@@ -66,9 +67,7 @@ def discriminator_score(real: pd.DataFrame, synth: pd.DataFrame) -> dict:
     return {"auc": scores.mean(), "auc_std": scores.std()}
 
 
-def medical_concept_abundance(
-    real: pd.DataFrame, synth: pd.DataFrame, column: str
-) -> dict:
+def medical_concept_abundance(real: pd.DataFrame, synth: pd.DataFrame, column: str) -> dict:
     """Normalized Manhattan distance of categorical distributions."""
     real_dist = real[column].value_counts(normalize=True).sort_index()
     synth_dist = synth[column].value_counts(normalize=True).sort_index()

@@ -17,12 +17,29 @@ def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
     return pd.get_dummies(df, columns=cols_to_encode, drop_first=False, dtype=int)
 
 
-def impute_missing_static(df: pd.DataFrame) -> pd.DataFrame:
+def impute_missing_static(
+    df: pd.DataFrame,
+    method: str = "median",
+) -> pd.DataFrame:
     """Impute missing values in static features.
 
-    - Numeric: median imputation with missingness flag columns for lab values
-    - Categorical: mode imputation
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Static features with potential missing values.
+    method : str
+        Imputation strategy for numeric columns.  One of ``"median"``
+        (default) or ``"mean"``.  Categorical columns always use mode
+        imputation regardless of this setting.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with missing values filled.
     """
+    if method not in ("median", "mean"):
+        raise ValueError(f"Unsupported imputation method: {method!r}")
+
     result = df.copy()
 
     # Lab columns that should get missingness flags
@@ -31,13 +48,19 @@ def impute_missing_static(df: pd.DataFrame) -> pd.DataFrame:
     for col in lab_cols:
         if col in result.columns and result[col].isna().any():
             result[f"{col}_missing"] = result[col].isna().astype(int)
-            result[col] = result[col].fillna(result[col].median())
+            fill_value = (
+                result[col].median() if method == "median" else result[col].mean()
+            )
+            result[col] = result[col].fillna(fill_value)
 
-    # Other numeric columns — median impute without missingness flag
+    # Other numeric columns — impute without missingness flag
     numeric_cols = result.select_dtypes(include=[np.number]).columns
     for col in numeric_cols:
         if result[col].isna().any():
-            result[col] = result[col].fillna(result[col].median())
+            fill_value = (
+                result[col].median() if method == "median" else result[col].mean()
+            )
+            result[col] = result[col].fillna(fill_value)
 
     # Categorical columns — mode impute
     cat_cols = result.select_dtypes(include=["object", "category"]).columns

@@ -28,6 +28,29 @@ def test_impute_missing_static():
     assert "glucose_admit_missing" in imputed.columns
 
 
+def test_impute_missing_static_mean():
+    from src.data.preprocess import impute_missing_static
+    df = pd.DataFrame({
+        "anchor_age": [60.0, np.nan, 80.0],
+        "lab_glucose": [100.0, np.nan, 200.0],
+    })
+    imputed_mean = impute_missing_static(df, method="mean")
+    imputed_median = impute_missing_static(df, method="median")
+    # Mean of [60, 80] = 70; median of [60, 80] = 70 (same for 2 values)
+    assert imputed_mean["anchor_age"].notna().all()
+    assert imputed_median["anchor_age"].notna().all()
+    # Lab columns should get missingness flags regardless of method
+    assert "lab_glucose_missing" in imputed_mean.columns
+
+
+def test_impute_missing_static_invalid_method():
+    from src.data.preprocess import impute_missing_static
+    import pytest
+    df = pd.DataFrame({"anchor_age": [65, np.nan, 70]})
+    with pytest.raises(ValueError, match="Unsupported imputation method"):
+        impute_missing_static(df, method="invalid")
+
+
 def test_normalize_numeric():
     from src.data.preprocess import normalize_numeric
     df = pd.DataFrame({"age": [20, 40, 60, 80], "los": [1, 2, 3, 4]})

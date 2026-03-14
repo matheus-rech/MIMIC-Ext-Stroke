@@ -124,6 +124,93 @@ class StrokeProfileBN:
             return []
         return list(self.model.edges())
 
+    def get_cpd(self, node: str) -> TabularCPD | None:
+        """Return the conditional probability distribution for *node*."""
+        if self.model is None:
+            return None
+        return self.model.get_cpds(node)
+
+    def analyse_edges(
+        self,
+        target: str = "hospital_expire_flag",
+        parents_of_interest: list[str] | None = None,
+    ) -> dict:
+        """Analyse edges into *target* and summarise conditional probabilities.
+
+        This is used to inspect paradoxical associations (e.g. hypertension or
+        dyslipidemia appearing protective for mortality) and report the
+        conditional probability distributions learned by the BN.
+
+        Parameters
+        ----------
+        target : str
+            The target node (default: ``hospital_expire_flag``).
+        parents_of_interest : list[str] or None
+            If provided, only report edges from these parents to *target*.
+            Otherwise report all parents of *target*.
+
+        Returns
+        -------
+        dict with ``edges`` (list of parent→target tuples), ``cpd_summary``
+        (conditional probabilities keyed by parent state combination), and
+        ``parents`` (list of parent names).
+        """
+        if self.model is None:
+            return {"edges": [], "cpd_summary": {}, "parents": []}
+
+        all_edges = list(self.model.edges())
+        parents = [u for u, v in all_edges if v == target]
+
+        if parents_of_interest is not None:
+            parents = [p for p in parents if p in parents_of_interest]
+
+        cpd = self.model.get_cpds(target)
+        if cpd is None:
+            return {"edges": [], "cpd_summary": {}, "parents": parents}
+
+        # Build a readable summary of the CPD
+        summary: dict = {
+            "variable": target,
+            "parents": list(cpd.get_evidence()),
+            "states": list(cpd.state_names.get(target, [])),
+        }
+
+        # Extract the probability table as a dict keyed by parent state combos
+        values = cpd.get_values()  # shape: (target_card, prod(parent_cards))
+        evidence = cpd.get_evidence()
+        evidence_card = cpd.get_cardinality(evidence) if evidence else []
+
+        if evidence:
+            import itertools
+            parent_states = [
+                cpd.state_names.get(e, list(range(c)))
+                for e, c in zip(evidence, evidence_card)
+            ]
+            combos = list(itertools.product(*parent_states))
+            target_states = cpd.state_names.get(target, list(range(values.shape[0])))
+
+            prob_table = {}
+            for idx, combo in enumerate(combos):
+                key = "|".join(f"{e}={s}" for e, s in zip(evidence, combo))
+                prob_table[key] = {
+                    str(ts): float(values[ti, idx])
+                    for ti, ts in enumerate(target_states)
+                }
+            summary["conditional_probabilities"] = prob_table
+        else:
+            target_states = cpd.state_names.get(target, list(range(values.shape[0])))
+            summary["marginal_probabilities"] = {
+                str(ts): float(values[ti, 0])
+                for ti, ts in enumerate(target_states)
+            }
+
+        relevant_edges = [(p, target) for p in parents]
+        return {
+            "edges": relevant_edges,
+            "cpd_summary": summary,
+            "parents": parents,
+        }
+
     # ------------------------------------------------------------------ #
     #  Discretization helpers                                              #
     # ------------------------------------------------------------------ #

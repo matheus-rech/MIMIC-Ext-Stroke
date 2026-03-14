@@ -31,7 +31,7 @@ from src.evaluation.fidelity import (
     discriminator_score,
     medical_concept_abundance,
 )
-from src.evaluation.clinical_rules import check_clinical_rules
+from src.evaluation.clinical_rules import check_clinical_rules, inverse_normalize, load_norm_params
 from src.evaluation.utility import tstr_evaluation
 from src.evaluation.privacy import (
     membership_inference_attack,
@@ -155,6 +155,15 @@ def main():
     print(f"  Time-series:  {ts_df.shape}")
 
     n_test = len(test_ohe)
+
+    # Load normalization parameters for inverse-normalization
+    norm_params_path = os.path.join(COHORT_DIR, "norm_params.json")
+    norm_params: dict | None = None
+    if os.path.exists(norm_params_path):
+        norm_params = load_norm_params(norm_params_path)
+        print(f"  Loaded norm_params: {len(norm_params)} columns")
+    else:
+        print("  WARNING: norm_params.json not found; plausibility will run on raw scale")
 
     # Prepare BN-compatible data (original categoricals)
     train_bn = _prepare_bn_data(train_ohe, full_static)
@@ -310,7 +319,10 @@ def main():
 
     clinical = {}
     for label, df in [("Real", test_ohe_eval), ("BN", synth_bn), ("CTGAN", synth_ctgan_eval), ("TVAE", synth_tvae_eval)]:
-        cr = check_clinical_rules(df)
+        # BN data is already on the clinical scale (inverse-discretized);
+        # OHE-based data (Real, CTGAN, TVAE) needs inverse-normalization.
+        use_norm = norm_params if label != "BN" else None
+        cr = check_clinical_rules(df, norm_params=use_norm)
         clinical[label] = {
             "total_violation_rate": round(cr["total_violation_rate"], 4),
             "total_violations": cr["total_violations"],
@@ -389,18 +401,24 @@ def main():
     quasi_ids_ohe = [c for c in _get_numeric_cols(train_ohe)
                      if c != "hospital_expire_flag"][:10]  # Top 10 numeric features
 
+    # Inverse-normalize training data once so all privacy comparisons
+    # happen on the *original clinical scale*.
+    train_ohe_clinical = (
+        inverse_normalize(train_ohe, norm_params) if norm_params else train_ohe.copy()
+    )
+
     for model_name, synth_df in [("BN", None), ("CTGAN", synth_ctgan), ("TVAE", synth_tvae)]:
         print(f"\n  [{model_name}] Computing privacy metrics...")
         model_privacy = {}
 
         if model_name == "BN":
-            # Use BN-compatible numeric columns
+            # BN synthetic data is already on the clinical scale.
             bn_num = [c for c in synth_bn.columns
                       if synth_bn[c].dtype in [np.float64, np.int64, np.float32, np.int32]
                       and c not in ID_COLS]
-            common = [c for c in bn_num if c in train_ohe.columns]
+            common = [c for c in bn_num if c in train_ohe_clinical.columns]
             if common:
-                real_priv = train_ohe[common]
+                real_priv = train_ohe_clinical[common]
                 synth_priv = synth_bn[common]
                 mia = membership_inference_attack(real_priv, synth_priv)
                 nnd = nearest_neighbor_distance(real_priv, synth_priv)
@@ -409,7 +427,7 @@ def main():
                 qi = [c for c in common if c != "hospital_expire_flag"][:8]
                 if "hospital_expire_flag" in synth_bn.columns:
                     aia = attribute_inference_attack(
-                        train_ohe, synth_bn, "hospital_expire_flag", qi
+                        train_ohe_clinical, synth_bn, "hospital_expire_flag", qi
                     )
                 else:
                     aia = {"aia_accuracy": 0}
@@ -418,14 +436,22 @@ def main():
                 nnd = {"mean_dcr": 0, "median_dcr": 0, "min_dcr": 0, "p5_dcr": 0}
                 aia = {"aia_accuracy": 0}
         else:
-            mia = membership_inference_attack(train_ohe[_get_numeric_cols(train_ohe)],
-                                              synth_df[_get_numeric_cols(synth_df)])
-            nnd = nearest_neighbor_distance(train_ohe[_get_numeric_cols(train_ohe)],
-                                            synth_df[_get_numeric_cols(synth_df)])
+            # CTGAN / TVAE: inverse-normalize synthetic data to clinical scale.
+            synth_clinical = (
+                inverse_normalize(synth_df, norm_params) if norm_params else synth_df.copy()
+            )
+            mia = membership_inference_attack(
+                train_ohe_clinical[_get_numeric_cols(train_ohe_clinical)],
+                synth_clinical[_get_numeric_cols(synth_clinical)],
+            )
+            nnd = nearest_neighbor_distance(
+                train_ohe_clinical[_get_numeric_cols(train_ohe_clinical)],
+                synth_clinical[_get_numeric_cols(synth_clinical)],
+            )
             # AIA: predict hospital_expire_flag
-            qi = quasi_ids_ohe
+            qi = [c for c in quasi_ids_ohe if c in train_ohe_clinical.columns][:10]
             aia = attribute_inference_attack(
-                train_ohe, synth_df, "hospital_expire_flag", qi
+                train_ohe_clinical, synth_clinical, "hospital_expire_flag", qi
             )
 
         model_privacy["mia_f1"] = round(mia["mia_f1"], 4)

@@ -159,7 +159,10 @@ def _clean_for_json(d: dict) -> dict:
         if isinstance(v, dict):
             out[k] = _clean_for_json(v)
         elif isinstance(v, (list, tuple)):
-            out[k] = [_safe_json(x) for x in v]
+            out[k] = [
+                _clean_for_json(x) if isinstance(x, dict) else _safe_json(x)
+                for x in v
+            ]
         else:
             out[k] = _safe_json(v)
     return out

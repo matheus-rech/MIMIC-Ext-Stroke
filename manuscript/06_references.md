@@ -34,9 +34,15 @@
 
 [14] Tsao CW, Aday AW, Almarzooq ZI, et al. Heart disease and stroke statistics—2023 update: a report from the American Heart Association. Circulation. 2023;147(8):e93-e621.
 
+## ICD Coding Validity
+
+[8b] McCormick N, Bhole V, Lacaille D, Avina-Zubieta JA. Validity of diagnostic codes for acute stroke in administrative databases: a systematic review. PLoS ONE. 2015;10(8):e0135834.
+
 ## Methods References — Statistical and Machine Learning Foundations
 
 [15] Koller D, Friedman N. Probabilistic Graphical Models: Principles and Techniques. Cambridge, MA: MIT Press; 2009.
+
+[15b] Vemmos KN, Tsivgoulis G, Spengos K, et al. U-shaped relationship between mortality and admission blood pressure in patients with acute stroke. J Intern Med. 2004;255(2):257-265.
 
 [16] Goodfellow I, Pouget-Abadie J, Mirza M, et al. Generative adversarial nets. In: Advances in Neural Information Processing Systems (NeurIPS). 2014;27.
 

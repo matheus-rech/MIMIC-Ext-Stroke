@@ -23,7 +23,7 @@ def extract_static_features(config: dict, cohort: pd.DataFrame) -> pd.DataFrame:
     """
     mimic_path = Path(config["data"]["mimic_path"]).resolve()
     cohort_path = Path(config["data"]["cohort_path"]).resolve()
-    sql_path = Path("sql/02_static_features.sql")
+    sql_path = Path(__file__).resolve().parent.parent.parent / "sql" / "02_static_features.sql"
 
     sql = sql_path.read_text()
     sql = sql.replace("{mimic_path}", str(mimic_path))
@@ -62,7 +62,7 @@ def extract_timeseries(config: dict, cohort: pd.DataFrame) -> pd.DataFrame:
     mimic_path = Path(config["data"]["mimic_path"]).resolve()
     cohort_path = Path(config["data"]["cohort_path"]).resolve()
     ts_cfg = config["timeseries"]
-    sql_path = Path("sql/03_timeseries_features.sql")
+    sql_path = Path(__file__).resolve().parent.parent.parent / "sql" / "03_timeseries_features.sql"
 
     sql = sql_path.read_text()
     sql = sql.replace("{mimic_path}", str(mimic_path))

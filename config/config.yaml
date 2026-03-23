@@ -1,12 +1,15 @@
 data:
-  mimic_path: "../mimiciv/3.1"
+  mimic_path: "/Volumes/VMDrive/Databases"  # MIMIC-IV 3.1
+  # Override via CLI: --mimic-path /path/to/mimiciv
+  eicu_path: "/Volumes/VMDrive/Databases2"   # eICU-CRD 2.0
+  eicu_output_path: "outputs/eicu_validation"
   output_path: "./outputs"
   cohort_path: "./outputs/cohort"
   synthetic_path: "./outputs/synthetic"
 
 cohort:
-  stroke_icd9: ["433", "434", "435", "436"]
-  stroke_icd10: ["I60", "I61", "I63", "I65", "I66", "I67", "G45"]
+  stroke_icd9: ["430", "431", "432", "433", "434", "435", "436"]
+  stroke_icd10: ["I60", "I61", "I62", "I63", "I64", "I65", "I66", "I67", "G45"]
   min_icu_los_hours: 6
   max_icu_los_days: 30
 
@@ -25,7 +28,8 @@ models:
   dgan:
     epochs: 5000
     batch_size: 32
-    sample_len: 6
+    hidden_dim: 128
+    # sample_len: 6  # Legacy DoppelGANger param, not used
     noise_dim: 100
   n_synthetic_datasets: 10
   random_seed: 42

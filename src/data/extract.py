@@ -19,7 +19,7 @@ def extract_stroke_cohort(config: dict) -> pd.DataFrame:
     """
     mimic_path = Path(config["data"]["mimic_path"]).resolve()
     cohort_cfg = config["cohort"]
-    sql_path = Path("sql/01_stroke_cohort.sql")
+    sql_path = Path(__file__).resolve().parent.parent.parent / "sql" / "01_stroke_cohort.sql"
 
     sql = sql_path.read_text()
     sql = sql.replace("{mimic_path}", str(mimic_path))

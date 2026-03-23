@@ -14,20 +14,25 @@ WITH stroke_diagnoses AS (
         ON d.icd_code = diag.icd_code AND d.icd_version = diag.icd_version
     WHERE
         (d.icd_version = 9 AND (
-            d.icd_code LIKE '433%' OR
-            d.icd_code LIKE '434%' OR
-            d.icd_code LIKE '435%' OR
-            d.icd_code = '436'
+            d.icd_code LIKE '430%' OR   -- Subarachnoid hemorrhage
+            d.icd_code LIKE '431%' OR   -- Intracerebral hemorrhage
+            d.icd_code LIKE '432%' OR   -- Other intracranial hemorrhage
+            d.icd_code LIKE '433%' OR   -- Occlusion/stenosis precerebral arteries
+            d.icd_code LIKE '434%' OR   -- Occlusion of cerebral arteries
+            d.icd_code LIKE '435%' OR   -- TIA
+            d.icd_code = '436'          -- Acute cerebrovascular disease
         ))
         OR
         (d.icd_version = 10 AND (
-            d.icd_code LIKE 'I60%' OR
-            d.icd_code LIKE 'I61%' OR
-            d.icd_code LIKE 'I63%' OR
-            d.icd_code LIKE 'I65%' OR
-            d.icd_code LIKE 'I66%' OR
-            d.icd_code LIKE 'I67%' OR
-            d.icd_code LIKE 'G45%'
+            d.icd_code LIKE 'I60%' OR   -- Nontraumatic SAH
+            d.icd_code LIKE 'I61%' OR   -- Nontraumatic ICH
+            d.icd_code LIKE 'I62%' OR   -- Other nontraumatic intracranial hemorrhage
+            d.icd_code LIKE 'I63%' OR   -- Cerebral infarction
+            d.icd_code LIKE 'I64%' OR   -- Stroke, not specified as hemorrhage or infarction
+            d.icd_code LIKE 'I65%' OR   -- Occlusion/stenosis precerebral arteries
+            d.icd_code LIKE 'I66%' OR   -- Occlusion/stenosis cerebral arteries
+            d.icd_code LIKE 'I67%' OR   -- Other cerebrovascular diseases
+            d.icd_code LIKE 'G45%'      -- TIA
         ))
 ),
 
@@ -41,7 +46,6 @@ stroke_icu AS (
         sd.icd_title,
         i.stay_id,
         i.first_careunit,
-        i.last_careunit,
         i.intime,
         i.outtime,
         i.los,

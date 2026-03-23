@@ -25,6 +25,7 @@ def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
 def impute_missing_static(
     df: pd.DataFrame,
     method: str = "median",
+    fill_values: dict | None = None,
 ) -> pd.DataFrame:
     """Impute missing values in static features.
 
@@ -35,7 +36,13 @@ def impute_missing_static(
     method : str
         Imputation strategy for numeric columns.  One of ``"median"``
         (default) or ``"mean"``.  Categorical columns always use mode
-        imputation regardless of this setting.
+        imputation regardless of this setting. Ignored when
+        *fill_values* is provided.
+    fill_values : dict, optional
+        Pre-computed fill values per column (from ``fit_imputation``).
+        When provided, these values are used directly instead of
+        computing new statistics from *df*. This prevents data leakage
+        when applying train-set statistics to val/test splits.
 
     Returns
     -------
@@ -53,15 +60,21 @@ def impute_missing_static(
     for col in lab_cols:
         if col in result.columns and result[col].isna().any():
             result[f"{col}_missing"] = result[col].isna().astype(int)
-            fill_value = result[col].median() if method == "median" else result[col].mean()
-            result[col] = result[col].fillna(fill_value)
+            if fill_values and col in fill_values:
+                result[col] = result[col].fillna(fill_values[col])
+            else:
+                fv = result[col].median() if method == "median" else result[col].mean()
+                result[col] = result[col].fillna(fv)
 
     # Other numeric columns — impute without missingness flag
     numeric_cols = result.select_dtypes(include=[np.number]).columns
     for col in numeric_cols:
         if result[col].isna().any():
-            fill_value = result[col].median() if method == "median" else result[col].mean()
-            result[col] = result[col].fillna(fill_value)
+            if fill_values and col in fill_values:
+                result[col] = result[col].fillna(fill_values[col])
+            else:
+                fv = result[col].median() if method == "median" else result[col].mean()
+                result[col] = result[col].fillna(fv)
 
     # Categorical columns — mode impute
     cat_cols = result.select_dtypes(include=["object", "category"]).columns
@@ -72,6 +85,63 @@ def impute_missing_static(
                 result[col] = result[col].fillna(mode_val.iloc[0])
 
     return result
+
+
+def fit_imputation(
+    train_df: pd.DataFrame,
+    method: str = "median",
+) -> dict:
+    """Compute fill values from the training set only.
+
+    Parameters
+    ----------
+    train_df : pd.DataFrame
+        Training-split static features.
+    method : str
+        ``"median"`` (default) or ``"mean"``.
+
+    Returns
+    -------
+    dict
+        Column name -> fill value mapping.
+    """
+    fill_values: dict = {}
+    numeric_cols = train_df.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        if train_df[col].isna().any():
+            fv = train_df[col].median() if method == "median" else train_df[col].mean()
+            fill_values[col] = float(fv)
+    # Also capture lab/admit columns that might have been encoded
+    lab_cols = [c for c in train_df.columns if c.startswith("lab_") or c.endswith("_admit")]
+    for col in lab_cols:
+        if col in train_df.columns and col not in fill_values and train_df[col].isna().any():
+            fv = train_df[col].median() if method == "median" else train_df[col].mean()
+            fill_values[col] = float(fv)
+    return fill_values
+
+
+def apply_imputation(
+    df: pd.DataFrame,
+    fill_values: dict,
+    method: str = "median",
+) -> pd.DataFrame:
+    """Apply pre-computed fill values (wrapper around ``impute_missing_static``).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Static features with potential missing values.
+    fill_values : dict
+        Pre-computed fill values (from ``fit_imputation``).
+    method : str
+        Passed through for categorical mode imputation.
+
+    Returns
+    -------
+    pd.DataFrame
+        Imputed DataFrame.
+    """
+    return impute_missing_static(df, method=method, fill_values=fill_values)
 
 
 def normalize_numeric(df: pd.DataFrame, columns: list = None) -> tuple[pd.DataFrame, dict]:
@@ -185,7 +255,6 @@ def preprocess_pipeline(config: dict) -> dict:
         "icd_version",
         "seq_num",
         "icd_title",
-        "last_careunit",
         "intime",
         "outtime",
         "dod",
@@ -204,10 +273,11 @@ def preprocess_pipeline(config: dict) -> dict:
         seed=config["models"]["random_seed"],
     )
 
-    # Impute missing values (fit on each split independently for median)
-    train_imputed = impute_missing_static(train_raw)
-    val_imputed = impute_missing_static(val_raw)
-    test_imputed = impute_missing_static(test_raw)
+    # Impute missing values (fit on train, apply to val/test — no leakage)
+    fill_values = fit_imputation(train_raw)
+    train_imputed = apply_imputation(train_raw, fill_values)
+    val_imputed = apply_imputation(val_raw, fill_values)
+    test_imputed = apply_imputation(test_raw, fill_values)
 
     # Encode categoricals
     train_encoded = encode_categoricals(train_imputed)

@@ -43,6 +43,9 @@ class HybridDigitalTwin:
         dgan_noise_dim: int = 100,
         dgan_hidden_dim: int = 128,
         seq_len: int = 72,
+        loss_type: str = "bce",
+        n_critic: int = 5,
+        gp_lambda: float = 10.0,
     ):
         self.bn = StrokeProfileBN(max_indegree=bn_max_indegree)
         self.seq_len = seq_len
@@ -51,6 +54,9 @@ class HybridDigitalTwin:
             "batch_size": dgan_batch_size,
             "noise_dim": dgan_noise_dim,
             "hidden_dim": dgan_hidden_dim,
+            "loss_type": loss_type,
+            "n_critic": n_critic,
+            "gp_lambda": gp_lambda,
         }
         self.dgan: StrokeTimeSeriesDGAN | None = None
         self._metadata_cols: list[str] | None = None

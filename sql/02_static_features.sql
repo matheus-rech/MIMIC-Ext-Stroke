@@ -60,9 +60,13 @@ stroke_subtype AS (
         CASE
             WHEN c.icd_code LIKE 'I63%' THEN 'ischemic'
             WHEN c.icd_code LIKE 'I61%' THEN 'ich'
+            WHEN c.icd_code LIKE 'I62%' THEN 'ich'
             WHEN c.icd_code LIKE 'I60%' THEN 'sah'
+            WHEN c.icd_code LIKE 'I64%' THEN 'other'
             WHEN c.icd_code LIKE 'G45%' THEN 'tia'
             WHEN c.icd_version = 9 AND (c.icd_code LIKE '433%' OR c.icd_code LIKE '434%') THEN 'ischemic'
+            WHEN c.icd_version = 9 AND (c.icd_code LIKE '430%') THEN 'sah'
+            WHEN c.icd_version = 9 AND (c.icd_code LIKE '431%' OR c.icd_code LIKE '432%') THEN 'ich'
             WHEN c.icd_version = 9 AND c.icd_code LIKE '435%' THEN 'tia'
             ELSE 'other'
         END AS stroke_subtype

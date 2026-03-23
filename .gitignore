@@ -1,12 +1,51 @@
-.venv/
-outputs/cohort/
-outputs/synthetic/
-*.parquet
-*.npy
-*.pyc
+# Python
 __pycache__/
-.DS_Store
+*.py[cod]
+*$py.class
 *.egg-info/
 dist/
 build/
+*.egg
 .ruff_cache/
+
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+
+# Pipeline outputs (large files, PHI-sensitive)
+outputs/cohort/
+outputs/synthetic/
+outputs/dgan/
+outputs/evaluation/
+outputs/eicu_validation/
+outputs/optimization/
+
+# Data (never commit MIMIC/eICU data)
+/data/
+*.csv.gz
+*.parquet
+*.npy
+*.npz
+
+# Model weights
+*.pt
+*.h5
+*.pkl
+
+# Logs
+*.log
+nohup.out
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets
+.env

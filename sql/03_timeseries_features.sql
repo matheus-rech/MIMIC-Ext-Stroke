@@ -25,6 +25,9 @@ raw_events AS (
         220050,  -- Arterial Blood Pressure systolic
         220051,  -- Arterial Blood Pressure diastolic
         220052,  -- Arterial Blood Pressure mean
+        220179,  -- Non-Invasive Blood Pressure systolic
+        220180,  -- Non-Invasive Blood Pressure diastolic
+        220181,  -- Non-Invasive Blood Pressure mean
         220210,  -- Respiratory Rate
         220277,  -- SpO2
         223762,  -- Temperature Celsius
@@ -80,9 +83,14 @@ pivoted AS (
         stay_id,
         hour,
         MAX(CASE WHEN itemid = 220045 THEN median_val END) AS hr,
-        MAX(CASE WHEN itemid = 220050 THEN median_val END) AS sbp,
-        MAX(CASE WHEN itemid = 220051 THEN median_val END) AS dbp,
-        MAX(CASE WHEN itemid = 220052 THEN median_val END) AS map,
+        -- Arterial BP (preferred)
+        MAX(CASE WHEN itemid = 220050 THEN median_val END) AS sbp_art,
+        MAX(CASE WHEN itemid = 220051 THEN median_val END) AS dbp_art,
+        MAX(CASE WHEN itemid = 220052 THEN median_val END) AS map_art,
+        -- Non-invasive BP (fallback)
+        MAX(CASE WHEN itemid = 220179 THEN median_val END) AS sbp_ni,
+        MAX(CASE WHEN itemid = 220180 THEN median_val END) AS dbp_ni,
+        MAX(CASE WHEN itemid = 220181 THEN median_val END) AS map_ni,
         MAX(CASE WHEN itemid = 220210 THEN median_val END) AS rr,
         MAX(CASE WHEN itemid = 220277 THEN median_val END) AS spo2,
         MAX(CASE WHEN itemid = 223762 THEN median_val END) AS temp_c_direct,
@@ -99,9 +107,10 @@ SELECT
     stay_id,
     hour,
     hr,
-    sbp,
-    dbp,
-    map,
+    -- Prefer arterial BP; fall back to non-invasive when arterial is absent
+    COALESCE(sbp_art, sbp_ni) AS sbp,
+    COALESCE(dbp_art, dbp_ni) AS dbp,
+    COALESCE(map_art, map_ni) AS map,
     rr,
     spo2,
     -- Coalesce Celsius direct with converted Fahrenheit

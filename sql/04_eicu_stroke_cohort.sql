@@ -19,7 +19,8 @@ WITH patients AS (
         p.ethnicity,
         p.hospitalid,
         p.unittype,
-        p.unitadmitoffset,
+        -- eICU offsets are relative to ICU admission, so unitadmitoffset = 0
+        0 AS unitadmitoffset,
         p.unitdischargeoffset,
         p.hospitaldischargestatus
     FROM read_csv_auto('{eicu_path}/patient.csv.gz', header=true) p
@@ -78,7 +79,18 @@ mortality AS (
         ar.patientunitstayid,
         ar.actualhospitalmortality,
         ar.apachescore
-    FROM read_csv_auto('{eicu_path}/apachepatientresult.csv.gz', header=true) ar
+    FROM (
+        SELECT
+            ar2.patientunitstayid,
+            ar2.actualhospitalmortality,
+            ar2.apachescore,
+            ROW_NUMBER() OVER (
+                PARTITION BY ar2.patientunitstayid
+                ORDER BY ar2.apachescore DESC NULLS LAST
+            ) AS rn
+        FROM read_csv_auto('{eicu_path}/apachePatientResult.csv.gz', header=true) ar2
+    ) ar
+    WHERE ar.rn = 1
 ),
 
 -- ============================================================
